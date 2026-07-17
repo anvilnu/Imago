@@ -864,6 +864,8 @@ _STRINGS = {
     "hist.show_layers":          {"es": "Mostrar {n} capas", "en": "Show {n} layers", "fr": "Afficher {n} calques"},
     "hist.hide_layers":          {"es": "Ocultar {n} capas", "en": "Hide {n} layers", "fr": "Masquer {n} calques"},
     "hist.resize_image":         {"es": "Cambiar tamaño ({w}x{h})", "en": "Resize ({w}x{h})", "fr": "Redimensionner ({w}x{h})"},
+    "hist.resize_image_dpi":     {"es": "Cambiar tamaño ({w}x{h}, {dpi} PPP)", "en": "Resize ({w}x{h}, {dpi} DPI)", "fr": "Redimensionner ({w}x{h}, {dpi} PPP)"},
+    "hist.change_dpi":           {"es": "Cambiar resolución ({dpi} PPP)", "en": "Change resolution ({dpi} DPI)", "fr": "Modifier la résolution ({dpi} PPP)"},
     "hist.flip_h_full":          {"es": "Voltear horizontalmente", "en": "Flip horizontally", "fr": "Miroir horizontal"},
     "hist.flip_v_full":          {"es": "Voltear verticalmente", "en": "Flip vertically", "fr": "Miroir vertical"},
     "hist.rotate_cw_full":       {"es": "Girar 90 en sentido horario", "en": "Rotate 90 clockwise", "fr": "Rotation 90° horaire"},

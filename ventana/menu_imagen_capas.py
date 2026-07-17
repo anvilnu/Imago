@@ -32,10 +32,10 @@ class AccionesMenuImagenCapas:
                                  title=t("dlg.resize.title", default="Cambiar tamaño de imagen"))
         if dialog.exec():
             new_w, new_h = dialog.get_values()
-            canvas.dpi = float(dialog.get_dpi())
-            if (new_w, new_h) != (canvas.base_width, canvas.base_height):
-                if canvas.resize_image(new_w, new_h):
-                    self.fit_canvas_to_screen()
+            cambia_tamano = (new_w, new_h) != (
+                canvas.base_width, canvas.base_height)
+            if canvas.resize_image(new_w, new_h, dialog.get_dpi()) and cambia_tamano:
+                self.fit_canvas_to_screen()
 
     def image_canvas_size(self):
         """Imagen → Tamaño del lienzo: cambia el lienzo sin escalar (con anclaje)."""

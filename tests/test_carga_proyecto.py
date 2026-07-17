@@ -80,6 +80,7 @@ class CargaProyectoTests(unittest.TestCase):
         data = load_project(self.path)
 
         self.assertEqual((data["width"], data["height"]), (2, 2))
+        self.assertEqual(data["dpi"], 96.0)
         self.assertEqual(data["active_layer_index"], 0)
         self.assertEqual(data["guides"], [{"orient": "h", "pos": 1.0}])
         self.assertEqual(len(data["layers"]), 1)
@@ -96,6 +97,7 @@ class CargaProyectoTests(unittest.TestCase):
         canvas = type("CanvasGuardado", (), {
             "base_width": 3,
             "base_height": 2,
+            "dpi": 240.0,
             "active_layer_index": 0,
             "layer_counter": 4,
             "guides": [{"orient": "v", "pos": 2.0}],
@@ -106,6 +108,7 @@ class CargaProyectoTests(unittest.TestCase):
         data = load_project(self.path)
 
         self.assertEqual((data["width"], data["height"]), (3, 2))
+        self.assertEqual(data["dpi"], 240.0)
         self.assertEqual(data["layer_counter"], 4)
         self.assertEqual(data["layers"][0].name, "Prueba")
         self.assertEqual((data["layers"][0].mask.width(),
@@ -124,7 +127,7 @@ class CargaProyectoTests(unittest.TestCase):
 
     def test_rechaza_tipos_rangos_indices_modos_y_guias_invalidos(self):
         casos = []
-        for clave, valor in (("width", True), ("height", 0),
+        for clave, valor in (("width", True), ("height", 0), ("dpi", 0),
                              ("active_layer_index", 1)):
             manifest = _manifest_base()
             manifest[clave] = valor

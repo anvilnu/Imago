@@ -1108,24 +1108,45 @@ class CanvasResizeCommand(_LayerCommand):
 
 class ImageResizeCommand(_LayerCommand):
     tool_id = "resize"
-    """Cambia el tamaño de la IMAGEN escalando todas las capas (con
-    suavizado de alta calidad). Para 'Imagen → Cambiar tamaño'."""
+    """Cambia tamaño y/o PPP de la imagen como una sola operación."""
 
-    def __init__(self, canvas, new_width, new_height):
-        super().__init__(canvas, t("hist.resize_image", w=new_width, h=new_height))
+    def __init__(self, canvas, new_width, new_height, new_dpi=None):
+        self.old_dpi = float(getattr(canvas, "dpi", 96.0) or 96.0)
+        self.new_dpi = (self.old_dpi if new_dpi is None
+                        else float(new_dpi))
+        self.changes_size = ((new_width, new_height)
+                             != (canvas.base_width, canvas.base_height))
+        changes_dpi = abs(self.new_dpi - self.old_dpi) >= 1e-9
+        dpi_text = f"{self.new_dpi:g}"
+        if self.changes_size and changes_dpi:
+            text = t("hist.resize_image_dpi", w=new_width, h=new_height,
+                     dpi=dpi_text)
+        elif changes_dpi:
+            text = t("hist.change_dpi", dpi=dpi_text)
+        else:
+            text = t("hist.resize_image", w=new_width, h=new_height)
+        super().__init__(canvas, text)
         self.new_width = new_width
         self.new_height = new_height
         self.old_width = canvas.base_width
         self.old_height = canvas.base_height
-        self.old_images = [QImage(layer.image) for layer in canvas.layers]
-        self.old_masks = [_copiar_mascara(layer.mask) for layer in canvas.layers]
-        # 📝 Capas de texto: origen, tamaño base, HTML y ancho fijo del cuadro
-        # (el redo escala fuentes y ancho, así que el undo necesita los originales).
-        self.old_text = [(QPointF(l.text_origin), l.base_width, l.base_height,
-                          l.text_html, getattr(l, "text_box_width", 0))
-                         if getattr(l, "is_text", False) else None
-                         for l in canvas.layers]
-        self.old_selection = canvas.selection
+        if self.changes_size:
+            self.old_images = [QImage(layer.image) for layer in canvas.layers]
+            self.old_masks = [_copiar_mascara(layer.mask) for layer in canvas.layers]
+            # 📝 Capas de texto: origen, tamaño base, HTML y ancho fijo del cuadro
+            # (redo escala fuentes/ancho; undo necesita los originales).
+            self.old_text = [
+                (QPointF(l.text_origin), l.base_width, l.base_height,
+                 l.text_html, getattr(l, "text_box_width", 0))
+                if getattr(l, "is_text", False) else None
+                for l in canvas.layers]
+            self.old_selection = canvas.selection
+        else:
+            # Cambiar solo PPP es metadato: no retener copias de imágenes grandes.
+            self.old_images = []
+            self.old_masks = []
+            self.old_text = []
+            self.old_selection = None
         self.new_images = None
         self.new_masks = None
         self.new_text = None
@@ -1136,64 +1157,73 @@ class ImageResizeCommand(_LayerCommand):
                        int(c.base_height * c.zoom_factor))
 
     def redo(self):
-        sx = self.new_width / max(1, self.old_width)
-        sy = self.new_height / max(1, self.old_height)
-        if self.new_images is None:
-            pares = [_escalar_imagen_y_mascara(
-                img, mask, self.new_width, self.new_height)
-                for img, mask in zip(self.old_images, self.old_masks)]
-            self.new_images = [par[0] for par in pares]
-            self.new_masks = [par[1] for par in pares]
-            # Texto: el origen escala por eje y la FUENTE con el ALTO (con
-            # proporciones distintas el texto no se estira en horizontal:
-            # sigue siendo vectorial y editable). El ancho FIJO del cuadro
-            # escala con el ANCHO (sigue ocupando la misma franja del lienzo).
-            self.new_text = []
-            for txt in self.old_text:
-                if txt is None:
-                    self.new_text.append(None)
-                else:
-                    origen, _bw, _bh, html, boxw = txt
-                    self.new_text.append((QPointF(origen.x() * sx, origen.y() * sy),
-                                          _texto_html_escalado(html, sy),
-                                          int(round(boxw * sx)) if boxw else 0))
+        if self.changes_size:
+            sx = self.new_width / max(1, self.old_width)
+            sy = self.new_height / max(1, self.old_height)
+            if self.new_images is None:
+                pares = [_escalar_imagen_y_mascara(
+                    img, mask, self.new_width, self.new_height)
+                    for img, mask in zip(self.old_images, self.old_masks)]
+                self.new_images = [par[0] for par in pares]
+                self.new_masks = [par[1] for par in pares]
+                # Texto: el origen escala por eje y la FUENTE con el ALTO (con
+                # proporciones distintas el texto no se estira en horizontal:
+                # sigue siendo vectorial y editable). El ancho FIJO del cuadro
+                # escala con el ANCHO (sigue ocupando la misma franja del lienzo).
+                self.new_text = []
+                for txt in self.old_text:
+                    if txt is None:
+                        self.new_text.append(None)
+                    else:
+                        origen, _bw, _bh, html, boxw = txt
+                        self.new_text.append((
+                            QPointF(origen.x() * sx, origen.y() * sy),
+                            _texto_html_escalado(html, sy),
+                            int(round(boxw * sx)) if boxw else 0))
 
-        for layer, img, mask, txt in zip(
-                self.canvas.layers, self.new_images, self.new_masks, self.new_text):
-            layer.image = QImage(img)
-            layer.mask = _copiar_mascara(mask)
-            if txt is not None:
-                layer.base_width = self.new_width
-                layer.base_height = self.new_height
-                layer.set_text(txt[1], QPointF(txt[0]), box_width=txt[2])
-                layer._text_cache = None
-        self.canvas.base_width = self.new_width
-        self.canvas.base_height = self.new_height
-        self._apply_size()
+            for layer, img, mask, txt in zip(
+                    self.canvas.layers, self.new_images,
+                    self.new_masks, self.new_text):
+                layer.image = QImage(img)
+                layer.mask = _copiar_mascara(mask)
+                if txt is not None:
+                    layer.base_width = self.new_width
+                    layer.base_height = self.new_height
+                    layer.set_text(txt[1], QPointF(txt[0]), box_width=txt[2])
+                    layer._text_cache = None
+            self.canvas.base_width = self.new_width
+            self.canvas.base_height = self.new_height
+            self._apply_size()
 
-        # La selección se escala proporcionalmente con el contenido
-        if self.old_selection is not None and self.old_width > 0 and self.old_height > 0:
-            from PySide6.QtGui import QTransform
-            self.canvas.selection = QTransform().scale(sx, sy).map(self.old_selection)
-        self.canvas.notify_selection_changed()
+            # La selección se escala proporcionalmente con el contenido.
+            if (self.old_selection is not None and self.old_width > 0
+                    and self.old_height > 0):
+                from PySide6.QtGui import QTransform
+                self.canvas.selection = QTransform().scale(
+                    sx, sy).map(self.old_selection)
+            self.canvas.notify_selection_changed()
+        self.canvas.dpi = self.new_dpi
         self._notify()
 
     def undo(self):
-        for layer, img, mask, txt in zip(
-                self.canvas.layers, self.old_images, self.old_masks, self.old_text):
-            layer.image = QImage(img)
-            layer.mask = _copiar_mascara(mask)
-            if txt is not None:
-                origen, bw, bh, html, boxw = txt
-                layer.base_width = bw
-                layer.base_height = bh
-                layer.set_text(html, QPointF(origen), box_width=boxw)
-                layer._text_cache = None
-        self.canvas.base_width = self.old_width
-        self.canvas.base_height = self.old_height
-        self._apply_size()
-        self.canvas.selection = self.old_selection
-        self.canvas.notify_selection_changed()
+        if self.changes_size:
+            for layer, img, mask, txt in zip(
+                    self.canvas.layers, self.old_images,
+                    self.old_masks, self.old_text):
+                layer.image = QImage(img)
+                layer.mask = _copiar_mascara(mask)
+                if txt is not None:
+                    origen, bw, bh, html, boxw = txt
+                    layer.base_width = bw
+                    layer.base_height = bh
+                    layer.set_text(html, QPointF(origen), box_width=boxw)
+                    layer._text_cache = None
+            self.canvas.base_width = self.old_width
+            self.canvas.base_height = self.old_height
+            self._apply_size()
+            self.canvas.selection = self.old_selection
+            self.canvas.notify_selection_changed()
+        self.canvas.dpi = self.old_dpi
         self._notify()
 
 

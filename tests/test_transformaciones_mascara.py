@@ -13,6 +13,7 @@ from models.layer_commands import (
     RotateCommand,
     RotateLayerCommand,
 )
+from widgets.canvas import Canvas
 
 
 def _pixeles(image):
@@ -44,6 +45,7 @@ class _CanvasFalso:
     def __init__(self, width=3, height=2, layers=None):
         self.base_width = width
         self.base_height = height
+        self.dpi = 96.0
         self.zoom_factor = 1.0
         self.layers = layers or [_crear_capa(width, height)]
         self.active_layer_index = 0
@@ -88,15 +90,17 @@ class TransformacionesMascaraTests(unittest.TestCase):
         self.assertEqual(_estado(layer.image), transformed_image)
         self.assertEqual(_estado(layer.mask), transformed_mask)
 
-    def test_cambiar_tamano_escala_mascara_y_deshace_exactamente(self):
+    def test_cambiar_tamano_y_dpi_se_deshacen_exactamente(self):
         canvas = _CanvasFalso()
         original_image = _estado(canvas.layers[0].image)
         original_mask = _estado(canvas.layers[0].mask)
 
-        canvas.undo_stack.push(ImageResizeCommand(canvas, 6, 4))
+        canvas.undo_stack.push(ImageResizeCommand(
+            canvas, 6, 4, new_dpi=300.0))
 
         layer = canvas.layers[0]
         self.assertEqual((canvas.base_width, canvas.base_height), (6, 4))
+        self.assertEqual(canvas.dpi, 300.0)
         self.assertEqual((layer.mask.width(), layer.mask.height()), (6, 4))
         self.assertEqual(layer.mask.format(), QImage.Format_Grayscale8)
         self.assertEqual(layer.mask.pixelColor(0, 0).red(), 255)
@@ -104,11 +108,36 @@ class TransformacionesMascaraTests(unittest.TestCase):
         transformed_mask = _estado(layer.mask)
 
         canvas.undo_stack.undo()
+        self.assertEqual(canvas.dpi, 96.0)
         self.assertEqual(_estado(layer.image), original_image)
         self.assertEqual(_estado(layer.mask), original_mask)
         canvas.undo_stack.redo()
+        self.assertEqual(canvas.dpi, 300.0)
         self.assertEqual(_estado(layer.image), transformed_image)
         self.assertEqual(_estado(layer.mask), transformed_mask)
+
+    def test_cambiar_solo_dpi_crea_un_paso_sucio_sin_tocar_pixeles(self):
+        canvas = _CanvasFalso()
+        original_image = _estado(canvas.layers[0].image)
+        original_mask = _estado(canvas.layers[0].mask)
+        canvas.undo_stack.setClean()
+
+        self.assertTrue(Canvas.resize_image(canvas, 3, 2, new_dpi=240.0))
+
+        self.assertEqual(canvas.undo_stack.count(), 1)
+        self.assertFalse(canvas.undo_stack.isClean())
+        self.assertEqual(canvas.undo_stack.command(0).old_images, [])
+        self.assertEqual(canvas.dpi, 240.0)
+        self.assertEqual(_estado(canvas.layers[0].image), original_image)
+        self.assertEqual(_estado(canvas.layers[0].mask), original_mask)
+        self.assertIn("240", canvas.undo_stack.text(0))
+
+        canvas.undo_stack.undo()
+        self.assertTrue(canvas.undo_stack.isClean())
+        self.assertEqual(canvas.dpi, 96.0)
+        self.assertEqual(_estado(canvas.layers[0].image), original_image)
+        canvas.undo_stack.redo()
+        self.assertEqual(canvas.dpi, 240.0)
 
     def test_voltear_documento_mantiene_mascara_alineada(self):
         for horizontal, expected in ((True, (2, 0)), (False, (0, 1))):

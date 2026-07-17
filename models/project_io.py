@@ -148,7 +148,7 @@ def _validar_manifest(manifest):
         _fallo_proyecto("err.project.invalid_field", field="manifest")
     _validar_claves(manifest, {
         "version", "width", "height", "active_layer_index",
-        "layer_counter", "guides", "layers", "groups",
+        "layer_counter", "guides", "layers", "groups", "dpi",
     }, "manifest")
 
     version = manifest.get("version")
@@ -167,6 +167,7 @@ def _validar_manifest(manifest):
     area = width * height
     if area > MAX_CANVAS_PIXELS:
         _fallo_proyecto("err.project.canvas_limit")
+    dpi = float(_validar_numero(manifest.get("dpi", 96.0), "dpi", 1.0))
 
     metas = manifest.get("layers")
     if not isinstance(metas, list) or not 1 <= len(metas) <= MAX_LAYERS:
@@ -313,7 +314,7 @@ def _validar_manifest(manifest):
         pos_val = _validar_numero(guide.get("pos"), f"{campo}.pos", 0, limite)
         guides.append({"orient": orient, "pos": pos_val})
 
-    return width, height, metas, groups_meta, active, counter, guides, rutas
+    return width, height, dpi, metas, groups_meta, active, counter, guides, rutas
 
 
 def _png_bytes(img):
@@ -427,6 +428,7 @@ def save_project(canvas, file_path):
         "version": PROJECT_VERSION,
         "width": canvas.base_width,
         "height": canvas.base_height,
+        "dpi": float(getattr(canvas, "dpi", 96.0) or 96.0),
         "active_layer_index": canvas.active_layer_index,
         "layer_counter": getattr(canvas, "layer_counter", len(canvas.layers)),
         "guides": [dict(g) for g in getattr(canvas, "guides", [])],
@@ -559,7 +561,7 @@ def load_project(file_path):
             manifest_bytes = _leer_entrada(
                 zf, "manifest.json", MAX_MANIFEST_BYTES)
             manifest = _cargar_json_manifest(manifest_bytes)
-            (width, height, metas, groups_meta, active, counter,
+            (width, height, dpi, metas, groups_meta, active, counter,
              guides, rutas) = _validar_manifest(manifest)
 
             esperadas = set(rutas)
@@ -669,6 +671,7 @@ def load_project(file_path):
     return {
         "width": width,
         "height": height,
+        "dpi": dpi,
         "layers": layers,
         "active_layer_index": active,
         "layer_counter": counter,

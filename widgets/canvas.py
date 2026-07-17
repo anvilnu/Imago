@@ -1292,15 +1292,22 @@ class Canvas(QWidget):
             self, new_w, new_h, offset_x, offset_y, t("hist.exp_canvas")))
         return True
 
-    def resize_image(self, new_width, new_height):
-        """Escala la imagen completa (todas las capas) al tamaño dado.
-        Deshacible. Para Imagen → Cambiar tamaño."""
+    def resize_image(self, new_width, new_height, new_dpi=None):
+        """Cambia tamaño y/o PPP mediante un único comando deshacible."""
         if new_width < 1 or new_height < 1:
             return False
-        if new_width == self.base_width and new_height == self.base_height:
+        old_dpi = float(getattr(self, "dpi", 96.0) or 96.0)
+        new_dpi = old_dpi if new_dpi is None else float(new_dpi)
+        import math
+        if not math.isfinite(new_dpi) or new_dpi < 1.0:
+            return False
+        mismo_tamano = (new_width == self.base_width
+                        and new_height == self.base_height)
+        if mismo_tamano and abs(new_dpi - old_dpi) < 1e-9:
             return False
         from models.layer_commands import ImageResizeCommand
-        self.undo_stack.push(ImageResizeCommand(self, new_width, new_height))
+        self.undo_stack.push(ImageResizeCommand(
+            self, new_width, new_height, new_dpi=new_dpi))
         return True
 
     def crop_to_selection(self):
@@ -1400,6 +1407,8 @@ class Canvas(QWidget):
         self.layers = data["layers"]
         self.active_layer_index = min(data["active_layer_index"], len(self.layers) - 1)
         self.layer_counter = data["layer_counter"]
+        if data.get("dpi") is not None:
+            self.dpi = float(data["dpi"])
         self.guides = list(data.get("guides", []))
         # Si el proyecto trae guías, deja las guías ACTIVAS (visibles y botón
         # marcado) para que se vean y se puedan manejar al abrirlo.

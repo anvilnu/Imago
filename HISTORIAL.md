@@ -601,3 +601,13 @@ Photopea (julio 2026). Ir marcando `[x]` según se implementen.
   silenciosa al volver a guardar. `ErrorCargaProyecto` unifica los fallos con
   mensajes ES/EN/FR. Cubierto por 10 regresiones, incluida una ida y vuelta con
   el guardador real; suite completa: 59 pruebas en Windows, 3 POSIX omitidas.
+- [x] **DPI persistente y deshacible** — HECHO (17-07-2026). Los proyectos
+  `.imago` guardan ahora `canvas.dpi`; el cargador lo valida y conserva 96 PPP
+  como valor por defecto para archivos v1 anteriores. Cambiar tamaño y PPP usa
+  un único `ImageResizeCommand`, por lo que deshacer/rehacer restaura a la vez
+  dimensiones, capas, máscaras, selección y resolución. Cambiar solo PPP crea
+  también un paso de Historial y deja el documento pendiente de guardar, pero
+  al ser únicamente metadato no retiene copias de todas las imágenes. Los textos
+  de Historial distinguen cambio de tamaño, cambio de resolución y operación
+  combinada en ES/EN/FR. Cubierto por 4 escenarios de regresión; suite completa:
+  60 pruebas en Windows, 3 POSIX omitidas condicionalmente.

@@ -159,11 +159,18 @@ prioridades críticas, porque afectan a la integridad del documento.
   se traducen a `ErrorCargaProyecto` con mensajes ES/EN/FR; una prueba de ida y
   vuelta confirma que el guardador actual cumple el contrato.
 
-- [ ] **Conservar el DPI en `.imago` y hacerlo parte del historial sucio.** El
+- [x] **Conservar el DPI en `.imago` y hacerlo parte del historial sucio.** El
   manifiesto no serializa `canvas.dpi`; al reabrir vuelve a 96. Cambiar solo
   el DPI tampoco crea una operación ni activa el aviso de guardado, y deshacer
   un cambio combinado de tamaño no restaura el DPI. Guardarlo en el proyecto y
   crear un comando que incluya tamaño anterior/nuevo y DPI anterior/nuevo.
+  Completado el 17-07-2026. El manifiesto v1 guarda y valida `dpi`, manteniendo
+  96 PPP como valor compatible para proyectos antiguos. `ImageResizeCommand`
+  conserva ahora tamaño y PPP anteriores/nuevos dentro del mismo paso: deshacer
+  y rehacer restauran ambos, y un cambio exclusivo de resolución entra en
+  `QUndoStack`, marca el documento como pendiente y aparece en Historial sin
+  copiar innecesariamente las imágenes de las capas. Cubierto por 4 escenarios
+  de regresión de persistencia, compatibilidad, cambio combinado y solo PPP.
 
 - [ ] **Identificar cambios de autoguardado por revisión, no por índice de
   `QUndoStack`.** Tras deshacer del índice 5 al 4 y crear una rama alternativa

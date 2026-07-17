@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtGui import QColor, QImage, QPageSize
+from PySide6.QtGui import QColor, QImage, QPageSize, QUndoCommand
 from PySide6.QtWidgets import QApplication
 
 from atomic_io import escribir_atomico
@@ -21,6 +21,7 @@ from models.autosave import AutoSaveManager
 from models.layer import Layer
 from models.project_io import load_project, save_ora, save_project
 from ventana.menu_archivo import AccionesMenuArchivo, ResultadoGuardado
+from widgets.canvas import Canvas
 
 
 _APP = QApplication.instance() or QApplication([])
@@ -437,6 +438,42 @@ class ExportacionesAtomicasTests(unittest.TestCase):
 
 
 class ManifiestoRecuperacionTests(unittest.TestCase):
+    def test_una_rama_nueva_con_el_mismo_indice_se_vuelve_a_guardar(self):
+        with tempfile.TemporaryDirectory() as carpeta:
+            canvas = Canvas(4, 3)
+            canvas.undo_stack.push(QUndoCommand("Rama A"))
+            indice_rama_a = canvas.undo_stack.index()
+            revision_rama_a = canvas.revision_autoguardado
+
+            tabs = type("Tabs", (), {
+                "count": lambda self: 1,
+                "widget": lambda self, i: type("Marker", (), {"canvas": canvas})(),
+                "tabText": lambda self, i: "Documento",
+            })()
+            manager = AutoSaveManager.__new__(AutoSaveManager)
+            manager.dir = carpeta
+            manager.main = type("Main", (), {"tabs": tabs})()
+            manager._counter = 0
+
+            def guardar_copia(_canvas, ruta):
+                with open(ruta, "wb") as f:
+                    f.write(str(_canvas.revision_autoguardado).encode("ascii"))
+                return True
+
+            with patch("models.autosave.save_project",
+                       side_effect=guardar_copia) as guardar:
+                manager.snapshot()
+                manager.snapshot()
+                self.assertEqual(guardar.call_count, 1)
+
+                canvas.undo_stack.undo()
+                canvas.undo_stack.push(QUndoCommand("Rama B"))
+                self.assertEqual(canvas.undo_stack.index(), indice_rama_a)
+                self.assertGreater(canvas.revision_autoguardado, revision_rama_a)
+
+                manager.snapshot()
+                self.assertEqual(guardar.call_count, 2)
+
     def test_si_falla_session_json_no_se_podan_las_copias_anteriores(self):
         with tempfile.TemporaryDirectory() as carpeta:
             session = os.path.join(carpeta, "session.json")
@@ -453,8 +490,9 @@ class ManifiestoRecuperacionTests(unittest.TestCase):
                 "isClean": lambda self: False,
                 "index": lambda self: 1,
             })()
+            canvas.revision_autoguardado = 1
             canvas._autosave_id = 1
-            canvas._autosave_idx = 1
+            canvas._autosave_revision = 1
             canvas.project_path = None
 
             tabs = type("Tabs", (), {
@@ -488,6 +526,7 @@ class ManifiestoRecuperacionTests(unittest.TestCase):
                 "isClean": lambda self: False,
                 "index": lambda self: 1,
             })()
+            canvas.revision_autoguardado = 1
             canvas.project_path = None
             tabs = type("Tabs", (), {
                 "count": lambda self: 1,
@@ -506,6 +545,7 @@ class ManifiestoRecuperacionTests(unittest.TestCase):
 
             borrar.assert_not_called()
             podar.assert_not_called()
+            self.assertFalse(hasattr(canvas, "_autosave_revision"))
             with open(session, "rb") as f:
                 self.assertEqual(f.read(), session_anterior)
 

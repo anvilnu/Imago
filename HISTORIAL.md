@@ -617,3 +617,12 @@ Photopea (julio 2026). Ir marcando `[x]` según se implementen.
   de Historial distinguen cambio de tamaño, cambio de resolución y operación
   combinada en ES/EN/FR. Cubierto por 4 escenarios de regresión; suite completa:
   60 pruebas en Windows, 3 POSIX omitidas condicionalmente.
+- [x] **Revisión monotónica para el autoguardado** — HECHO (17-07-2026).
+  `AutoSaveManager` ya no identifica el contenido por `QUndoStack.index()`, que
+  puede repetirse al deshacer y crear una rama nueva. Cada lienzo incrementa
+  `revision_autoguardado` en nuevos comandos, deshacer y rehacer, y solo actualiza
+  la revisión de la última copia cuando `save_project()` confirma el éxito. La
+  publicación atómica de `session.json` y la poda posterior se mantienen: un
+  fallo conserva el manifiesto y las copias recuperables anteriores. Cubierto
+  por una regresión que alcanza el mismo índice mediante dos ramas distintas;
+  suite completa: 62 pruebas en Windows, 3 POSIX omitidas condicionalmente.

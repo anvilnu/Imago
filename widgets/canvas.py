@@ -54,6 +54,10 @@ class Canvas(QWidget):
         
         # Historial y Capas
         self.undo_stack = QUndoStack(self)
+        # Revisión monotónica del ESTADO recorrido por el historial. No equivale
+        # a undo_stack.index(): deshacer y crear otra rama puede volver al mismo
+        # índice con contenido distinto. El autoguardado usa esta identidad.
+        self.revision_autoguardado = 0
         # 🔔 Avisar a la herramienta activa cuando el historial cambie
         # (deshacer/rehacer): así la caja de Mover selección sigue los cambios
         self.undo_stack.indexChanged.connect(self._on_history_changed)
@@ -581,6 +585,7 @@ class Canvas(QWidget):
     def _on_history_changed(self, _index=None):
         """El historial cambió (deshacer/rehacer/nuevo comando): si la
         herramienta activa quiere resincronizarse, se lo decimos."""
+        self.revision_autoguardado += 1
         tool = getattr(self, 'current_tool', None)
         if tool is not None and hasattr(tool, 'on_history_changed'):
             tool.on_history_changed()

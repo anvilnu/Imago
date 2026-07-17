@@ -465,7 +465,10 @@ diera problemas, el usuario puede forzar el backend a mano con
   in place), porque `MoveTool` detecta cambios externos por identidad del QImage.
   El límite de pasos es configurable (Preferencias → Historial, clave QSettings
   `undo_limit`, 0 = sin límite) y se aplica al CREAR cada lienzo (Qt solo
-  permite fijarlo con la pila vacía).
+  permite fijarlo con la pila vacía). El autoguardado NO identifica estados por
+  `undo_stack.index()`: `canvas.revision_autoguardado` es monotónica y avanza
+  con cada señal `indexChanged`, incluidas deshacer/rehacer y ramas nuevas; la
+  última revisión solo se confirma después de escribir correctamente la copia.
 - **Capas:** `canvas.layers` (lista) y `canvas.active_layer_index`;
   `widgets/layers_panel.py` las refleja y controla.
 - **Grupos de capas (carpetas):** SOLO organización, a propósito (nada de

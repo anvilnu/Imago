@@ -172,12 +172,20 @@ prioridades críticas, porque afectan a la integridad del documento.
   copiar innecesariamente las imágenes de las capas. Cubierto por 4 escenarios
   de regresión de persistencia, compatibilidad, cambio combinado y solo PPP.
 
-- [ ] **Identificar cambios de autoguardado por revisión, no por índice de
+- [x] **Identificar cambios de autoguardado por revisión, no por índice de
   `QUndoStack`.** Tras deshacer del índice 5 al 4 y crear una rama alternativa
   que vuelve al 5, el contenido es distinto pero el autoguardado cree que no
   cambió. Mantener un contador monotónico de revisión o una identidad de estado
   independiente del índice. Escribir `session.json` atómicamente y no podar la
   última copia válida hasta confirmar la nueva.
+  Completado el 17-07-2026. Cada `Canvas` mantiene ahora una
+  `revision_autoguardado` monotónica que avanza con nuevos comandos, deshacer y
+  rehacer; `AutoSaveManager` compara esa revisión con la última copia confirmada
+  en vez de comparar la posición de `QUndoStack`. Una regresión reproduce dos
+  ramas distintas que terminan en el mismo índice y confirma que la segunda se
+  vuelve a guardar, sin reescribir cuando la revisión no cambia. `session.json`
+  conserva la escritura atómica existente y las copias antiguas solo se podan
+  después de publicar correctamente el nuevo manifiesto.
 
 - [ ] **Respetar grupos y efectos al exportar animaciones.**
   `frames_de_capas()` usa `layer.visible` en lugar de

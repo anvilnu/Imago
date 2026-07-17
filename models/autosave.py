@@ -62,7 +62,11 @@ class AutoSaveManager:
     # --------------------------------------------------------------- escribir
     def snapshot(self):
         """Escribe copias de las pestañas con cambios sin guardar + el manifiesto.
-        Solo reescribe un documento si cambió desde la última copia (ahorra disco)."""
+        Solo reescribe un documento si cambió desde la última copia (ahorra disco).
+
+        La revisión es monotónica e independiente de QUndoStack.index(): dos
+        ramas distintas del historial pueden ocupar el mismo índice.
+        """
         entries = []
         keep = set()
         hay_pendientes = False
@@ -76,10 +80,11 @@ class AutoSaveManager:
                 canvas._autosave_id = self._counter
             fname = "doc_%d.imago" % canvas._autosave_id
             path = os.path.join(self.dir, fname)
-            idx = canvas.undo_stack.index()
-            if getattr(canvas, "_autosave_idx", None) != idx or not os.path.exists(path):
+            revision = canvas.revision_autoguardado
+            if (getattr(canvas, "_autosave_revision", None) != revision
+                    or not os.path.exists(path)):
                 if save_project(canvas, path):
-                    canvas._autosave_idx = idx
+                    canvas._autosave_revision = revision
                 else:
                     snapshot_completo = False
             # Si la copia nueva falló pero había una anterior, se conserva y se

@@ -1,0 +1,46 @@
+# Entorno y dependencias locales de Python
+/.venv/
+/venv/
+/env/
+
+# Cachés y resultados de herramientas Python
+__pycache__/
+*.py[cod]
+*$py.class
+/.pytest_cache/
+/.mypy_cache/
+/.ruff_cache/
+/.coverage
+/htmlcov/
+
+# Compilación y distribución
+/build/
+/dist/
+/installer/
+/Imago-*-portable.zip
+/icons/imago.ico
+
+# Datos generados durante la ejecución
+*.log
+/datos/
+/portable.txt
+*.tmp
+*.temp
+*.bak
+
+# Configuración personal del editor y del sistema
+/.vscode/
+/.idea/
+*.code-workspace
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Ayudas y planificación personales
+/AGENTS.md
+/CLAUDE.md
+/COMO_ACTUALIZAR.md
+/HISTORIAL.md
+/ROADMAP.md
+/.agents/
+/.codex/

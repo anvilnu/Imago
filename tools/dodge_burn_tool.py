@@ -1,0 +1,243 @@
+# tools/dodge_burn_tool.py
+from i18n import t
+import math
+import numpy as np
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QImage
+from tools.base_tool import BaseTool
+from tools.commands import PaintCommand
+
+
+class DodgeBurnTool(BaseTool):
+    """Sobreexponer / Subexponer (Dodge & Burn). Pincel que aclara (dodge) u
+    oscurece (burn) la zona pintada, pesando el efecto por el rango tonal
+    elegido (sombras / medios tonos / luces).
+
+    - Tamaño: compartido con el pincel. Dureza: difuminado del borde.
+    - Exposición: intensidad del efecto en cada pasada.
+    - Modo: Sobreexponer (aclarar) o Subexponer (oscurecer); mantener Ctrl al
+      empezar el trazo INVIERTE el modo temporalmente (como en otros editores).
+    - Dentro de un mismo trazo el efecto NO se acumula al repasar la misma zona
+      (máscara de trazo acumulada por máximo, estilo GIMP): cada pasada nueva
+      (soltar y volver a pintar) sí suma. Así el resultado es predecible.
+    - Respeta la selección activa. Vista previa en vivo y un paso de deshacer.
+    """
+
+    def __init__(self, canvas):
+        super().__init__(canvas)
+        self.tool_id = "dodge_burn"
+        self._active = False
+        self._before = None
+        self._orig = None         # float32 (H,W,3) RGB 0..1 del inicio del trazo
+        self._alpha = None        # uint8 (H,W) alfa original (no se toca)
+        self._acc = None          # float32 (H,W) máscara de trazo acumulada 0..1
+        self._out = None          # uint8 (H,W,4) buffer de salida
+        self._mask = None         # punta del pincel (D,D) 0..1
+        self._clip = None         # máscara booleana de la selección (o None)
+        self._D = 0
+        self._W = self._H = 0
+        self._last = None
+        self._dirty = None        # rect sucio (x0, y0, x1, y1) pendiente de recomputar
+        self._mode = "dodge"
+        self._range = "midtones"
+        self._exposure = 0.25
+        self._orig_fmt = None
+        self._outbuf = None
+        self._work = None         # QImage de trabajo del trazo (parches in place)
+
+    # ------------------------------------------------------------- ratón
+    def mouse_press(self, event):
+        if event.button() != Qt.LeftButton:
+            return
+        img = self.canvas.get_active_layer()
+        if img is None:
+            return
+        self._orig_fmt = img.format()
+        self._before = QImage(img)
+        u8 = self._qimage_to_array(img)
+        self._H, self._W = u8.shape[0], u8.shape[1]
+        self._orig = u8[..., :3].astype(np.float32) / 255.0
+        self._alpha = u8[..., 3].copy()
+        self._out = u8
+        self._acc = np.zeros((self._H, self._W), np.float32)
+        # 🚀 Imagen de TRABAJO del trazo: se asigna UNA vez y durante el trazo
+        # solo se le pintan los PARCHES modificados (in place, como el pincel):
+        # el coste por movimiento va con el tamaño del pincel, no de la imagen.
+        self._work = self._array_to_qimage(u8)
+        self.canvas.layers[self.canvas.active_layer_index].image = self._work
+        self._build_mask()
+        self._build_clip_mask()
+
+        self._mode = getattr(self.canvas, 'dodge_mode', 'dodge')
+        # Ctrl al empezar el trazo: modo contrario temporal
+        if event.modifiers() & Qt.ControlModifier:
+            self._mode = "burn" if self._mode == "dodge" else "dodge"
+        self._range = getattr(self.canvas, 'dodge_range', 'midtones')
+        self._exposure = max(1, min(100, getattr(self.canvas, 'dodge_exposure', 25))) / 100.0
+
+        pos = event.position() / self.canvas.zoom_factor
+        self._last = (pos.x(), pos.y())
+        self._dirty = None
+        self._stamp(pos.x(), pos.y())
+        self._active = True
+        self._flush_preview()
+
+    def mouse_move(self, event):
+        if not self._active:
+            return
+        pos = event.position() / self.canvas.zoom_factor
+        x1, y1 = pos.x(), pos.y()
+        x0, y0 = self._last
+        dist = math.hypot(x1 - x0, y1 - y0)
+        step = max(1.0, self._D * 0.25)
+        n = max(1, int(dist / step))
+        for i in range(1, n + 1):
+            f = i / n
+            self._stamp(x0 + (x1 - x0) * f, y0 + (y1 - y0) * f)
+        self._last = (x1, y1)
+        self._flush_preview()
+
+    def mouse_release(self, event):
+        if self._active:
+            self._active = False
+            self._commit()
+
+    def finish_editing(self):
+        if self._active:
+            self._active = False
+            self._commit()
+
+    # --------------------------------------------------------- máscaras
+    def _build_mask(self):
+        size = max(1, int(round(self.canvas.brush_size)))
+        self._D = size
+        R = size / 2.0
+        hardness = max(0, min(100, getattr(self.canvas, 'dodge_hardness', 50))) / 100.0
+        yy, xx = np.mgrid[0:size, 0:size]
+        c = (size - 1) / 2.0
+        d = np.sqrt((xx - c) ** 2 + (yy - c) ** 2) / (R if R > 0 else 1)
+        if hardness < 1.0:
+            k = np.clip((d - hardness) / (1.0 - hardness), 0, 1)
+            m = np.where(d > hardness, (1 - k) ** 3, 1.0)
+        else:
+            m = np.ones_like(d)
+        m[d > 1.0] = 0.0
+        self._mask = m.astype(np.float32)
+
+    def _build_clip_mask(self):
+        self._clip = None
+        sel = getattr(self.canvas, 'selection', None)
+        if sel is None or sel.isEmpty():
+            return
+        m = QImage(self._W, self._H, QImage.Format_Grayscale8)
+        m.fill(0)
+        from PySide6.QtGui import QPainter, QColor
+        p = QPainter(m)
+        p.setClipPath(sel)
+        p.fillRect(0, 0, self._W, self._H, QColor(255, 255, 255))
+        p.end()
+        bpl = m.bytesPerLine()
+        buf = np.frombuffer(m.constBits(), np.uint8).reshape(self._H, bpl)
+        self._clip = (buf[:, :self._W] > 127)
+
+    # --------------------------------------------------------- estampado
+    def _region(self, cx, cy):
+        D = self._D
+        x0 = int(round(cx - D / 2.0)); y0 = int(round(cy - D / 2.0))
+        bx0 = max(0, x0); by0 = max(0, y0)
+        bx1 = min(self._W, x0 + D); by1 = min(self._H, y0 + D)
+        if bx1 <= bx0 or by1 <= by0:
+            return None
+        mx0 = bx0 - x0; my0 = by0 - y0
+        return bx0, by0, bx1, by1, mx0, my0, mx0 + (bx1 - bx0), my0 + (by1 - by0)
+
+    def _stamp(self, cx, cy):
+        reg = self._region(cx, cy)
+        if not reg:
+            return
+        bx0, by0, bx1, by1, mx0, my0, mx1, my1 = reg
+        ms = self._mask[my0:my1, mx0:mx1]
+        if self._clip is not None:
+            ms = ms * self._clip[by0:by1, bx0:bx1]
+        acc = self._acc[by0:by1, bx0:bx1]
+        np.maximum(acc, ms, out=acc)   # máximo: sin acumular dentro del trazo
+        self._recompute(bx0, by0, bx1, by1)
+
+    def _recompute(self, bx0, by0, bx1, by1):
+        """Recalcula la región desde el ORIGINAL con la máscara acumulada: el
+        efecto de un trazo es uniforme aunque se repase la misma zona."""
+        v = self._orig[by0:by1, bx0:bx1]                       # (h,w,3) 0..1
+        s = self._acc[by0:by1, bx0:bx1] * self._exposure       # fuerza 0..1
+        s = s * (self._alpha[by0:by1, bx0:bx1] > 0)            # solo píxeles con alfa
+        s = s[..., None]
+        if self._range == "shadows":
+            w = 1.0 - v
+        elif self._range == "highlights":
+            w = v
+        else:  # medios tonos
+            w = 1.0 - np.abs(2.0 * v - 1.0)
+        if self._mode == "dodge":
+            out = v + s * w * (1.0 - v)      # empuja hacia el blanco
+        else:
+            out = v - s * w * v              # empuja hacia el negro
+        self._out[by0:by1, bx0:bx1, :3] = np.clip(out * 255.0 + 0.5, 0, 255).astype(np.uint8)
+        self._marcar_sucio(bx0, by0, bx1, by1)
+
+    # --------------------------------------------------------- volcado
+    def _marcar_sucio(self, x0, y0, x1, y1):
+        if self._dirty is None:
+            self._dirty = [x0, y0, x1, y1]
+        else:
+            d = self._dirty
+            d[0] = min(d[0], x0); d[1] = min(d[1], y0)
+            d[2] = max(d[2], x1); d[3] = max(d[3], y1)
+
+    def _flush_preview(self):
+        """Vuelca a la imagen de trabajo SOLO el parche modificado desde el
+        último volcado (copiar la imagen entera crecía con el documento).
+        Pintar in place sobre layer.image, como el pincel, invalida la caché
+        de composición por cacheKey."""
+        if self._dirty is None:
+            return
+        x0, y0, x1, y1 = self._dirty
+        self._dirty = None
+        sub = np.ascontiguousarray(self._out[y0:y1, x0:x1])
+        patch = QImage(sub.data, x1 - x0, y1 - y0, 4 * (x1 - x0),
+                       QImage.Format_RGBA8888)
+        from PySide6.QtGui import QPainter
+        p = QPainter(self._work)
+        p.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
+        p.drawImage(x0, y0, patch)
+        p.end()
+        self.canvas.update()
+
+    def _commit(self):
+        # La imagen de TRABAJO ya lleva todos los parches del trazo aplicados:
+        # se vuelca el último pendiente y se usa tal cual (sin otra copia entera).
+        self._flush_preview()
+        out = self._work.convertToFormat(self._orig_fmt)
+        self.canvas.layers[self.canvas.active_layer_index].image = out
+        after = QImage(out)
+        if self._before is not None and after != self._before:
+            texto = t("hist.dodge") if self._mode == "dodge" else t("hist.burn")
+            self.canvas.undo_stack.push(PaintCommand(
+                self.canvas, self.canvas.active_layer_index,
+                self._before, after, texto, tool_id="dodge_burn", confine=True))
+        self._before = self._orig = self._alpha = self._acc = None
+        self._out = self._mask = self._clip = self._outbuf = None
+        self._work = None
+        self._dirty = None
+
+    # --------------------------------------------------------- QImage<->numpy
+    def _qimage_to_array(self, qimg):
+        qimg = qimg.convertToFormat(QImage.Format_RGBA8888)
+        W, H = qimg.width(), qimg.height()
+        bpl = qimg.bytesPerLine()
+        buf = np.frombuffer(qimg.constBits(), np.uint8).reshape(H, bpl)
+        return buf[:, :W * 4].reshape(H, W, 4).copy()
+
+    def _array_to_qimage(self, arr):
+        self._outbuf = np.ascontiguousarray(arr)
+        qimg = QImage(self._outbuf.data, self._W, self._H, 4 * self._W,
+                      QImage.Format_RGBA8888)
+        return qimg.copy()

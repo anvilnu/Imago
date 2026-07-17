@@ -1,0 +1,44 @@
+# Dependencias de Python (instalar con: pip install -r requirements.txt)
+#
+# NOTA sobre Linux: Imago usa el backend nativo del SO (Wayland si la sesión
+# lo es); ya NO se fuerza xcb/XWayland. Solo si algún entorno diera problemas
+# y se forzara a mano el backend clásico (QT_QPA_PLATFORM=xcb), ese plugin
+# exige desde Qt 6.5 la librería DEL SISTEMA "libxcb-cursor" (si falta:
+# "could not load the Qt platform plugin xcb"). Se instala con la distro:
+#   Arch/CachyOS:  sudo pacman -S xcb-util-cursor
+#   Debian/Ubuntu: sudo apt install libxcb-cursor0
+numpy==2.5.0
+# Motor de IA local. Import PEREZOSO en ai/runner.py: Imago arranca aunque no
+# esté instalado; solo hace falta para EJECUTAR modelos (no para la UI).
+# - Windows: variante DirectML (mismo import "onnxruntime"): añade
+#   DmlExecutionProvider y los efectos de IA usan la GPU (cualquier marca:
+#   AMD/NVIDIA/Intel) con caída automática a CPU. Va por detrás en versiones
+#   respecto al paquete CPU (la última publicada es 1.24.x).
+# - Linux/Mac: variante CPU a propósito (onnxruntime-gpu exige CUDA/cuDNN e
+#   infla el paquete; para AMD en Linux ROCm es experimental y no se cablea).
+onnxruntime==1.27.0; sys_platform != "win32"
+onnxruntime-directml==1.24.4; sys_platform == "win32"
+# Visión clásica (funciones CV del menú IA: enderezar horizonte, ojos rojos...).
+# Variante headless (sin GUI propia, no choca con Qt). Import PEREZOSO en
+# ai/cv_effects.py: Imago arranca aunque no esté instalado.
+opencv-python-headless==4.13.0.92
+# Se usa en exif_utils.py (import PEREZOSO) para conservar los metadatos EXIF
+# (fecha, cámara, GPS...) al reescribir un JPEG, que QImageWriter descarta: el
+# bloque EXIF se reincrusta byte a byte sin recomprimir. Imago arranca aunque
+# no esté instalado (el guardado seguiría, sólo que sin EXIF).
+pillow==12.2.0
+# Plugins de Pillow para los formatos modernos al ABRIR (.avif/.heic/.heif y
+# .jxl), usados por main._cargar_via_pillow con import PEREZOSO: si faltaran,
+# Imago seguiría funcionando y avisaría qué paquete instalar. Van también en
+# el empaquetado (collect_all en Imago.spec: traen DLLs nativas de códecs).
+pillow-heif==1.4.0
+pillow-jxl-plugin==1.3.7
+# Importador de archivos de Photoshop (.psd/.psb) con capas (models/psd_io.py).
+# Import PEREZOSO: Imago arranca aunque no esté instalado (solo hace falta al
+# abrir un PSD). Solo LECTURA: el proyecto se guarda después como .imago.
+psd-tools==1.17.4
+PySide6==6.11.1
+PySide6_Addons==6.11.1
+PySide6_Essentials==6.11.1
+scipy==1.18.0
+shiboken6==6.11.1

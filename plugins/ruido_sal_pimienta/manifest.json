@@ -1,0 +1,8 @@
+{
+  "name": "Ruido sal y pimienta (ejemplo)",
+  "id": "ruido_sal_pimienta",
+  "version": "1.0.0",
+  "author": "Imago",
+  "api_version": 1,
+  "description": "Plugin de EJEMPLO: salpica píxeles blancos y negros con cantidad ajustable. Se registra en Efectos ▸ Plugins."
+}

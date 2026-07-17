@@ -1,0 +1,8 @@
+{
+  "name": "Sepia (ejemplo)",
+  "id": "sepia_ejemplo",
+  "version": "1.0.0",
+  "author": "Imago",
+  "api_version": 1,
+  "description": "Plugin de EJEMPLO: tono sepia con intensidad ajustable. Se registra en Ajustes ▸ Plugins."
+}

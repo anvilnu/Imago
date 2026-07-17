@@ -581,3 +581,12 @@ Photopea (julio 2026). Ir marcando `[x]` según se implementen.
   grupo o una base de recorte ocultos, y mantiene sincronizados lienzo, menú y
   panel. Cubierto por 4 regresiones headless y por la suite completa (47 pruebas
   en Windows; 3 casos POSIX se omiten condicionalmente en esa plataforma).
+- [x] **Liberar los documentos al cerrar sus pestañas** — HECHO (17-07-2026).
+  El nuevo `_retirar_y_destruir_pestana()` sustituye el `removeTab()` aislado:
+  cancela previews, trabajos de IA y ediciones flotantes; corta las referencias
+  de Capas, Historial, reglas y callbacks; separa el lienzo de su scroll y llama
+  a `deleteLater()` sobre botón, marcador, scroll y lienzo. El mismo camino se
+  usa al retirar automáticamente el lienzo inicial después de abrir un archivo.
+  Dos regresiones con widgets Qt reales fuerzan `DeferredDelete` y comprueban
+  tanto la destrucción completa como la conservación de la pestaña nueva. Suite
+  completa: 49 pruebas en Windows; 3 casos POSIX omitidos condicionalmente.

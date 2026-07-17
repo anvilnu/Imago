@@ -128,11 +128,18 @@ prioridades críticas, porque afectan a la integridad del documento.
   disponibilidad entre lienzo, menú y panel, incluyendo grupos y bases de
   recorte ocultos.
 
-- [ ] **Destruir de verdad los widgets de pestañas cerradas.** `removeTab()`
+- [x] **Destruir de verdad los widgets de pestañas cerradas.** `removeTab()`
   solo los oculta: el marcador continúa bajo el `QStackedWidget` y conserva
   lienzo, imágenes, historial y cachés hasta salir de Imago. Recuperar el
   widget, quitar la pestaña y llamar a `deleteLater()` tras desconectar/cancelar
   sus trabajos. Aplicarlo también al cierre automático del lienzo inicial.
+  Completado el 17-07-2026 y cubierto por 2 regresiones Qt específicas.
+  `_retirar_y_destruir_pestana()` centraliza ahora ambos caminos de cierre:
+  cancela previews, IA y herramientas flotantes; desvincula los paneles y
+  callbacks que apuntaban al documento; retira la pestaña y programa la
+  destrucción del botón, el marcador, el scroll y el lienzo. Las pruebas fuerzan
+  los eventos `DeferredDelete` y comprueban que los cuatro objetos Qt dejan de
+  ser válidos, mientras el documento recién abierto permanece intacto.
 
 - [ ] **Endurecer el cargador `.imago` y versionar el contrato.** Validar
   `version`, tipos, dimensiones positivas y razonables, número de capas,

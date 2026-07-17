@@ -1064,14 +1064,102 @@ class MainWindow(AccionesMenuIA, AccionesMenuAjustes, OpcionesHerramientas,
                     return
             elif resp == QMessageBox.Cancel:
                 return
-        canvas_cerrado = getattr(marker, "canvas", None)
-        if canvas_cerrado is not None:
-            cancel_ai = getattr(self, "_ai_cancel_for_canvas", None)
-            if callable(cancel_ai):
-                cancel_ai(canvas_cerrado)
-        self.tabs.removeTab(index)
+        self._retirar_y_destruir_pestana(index)
         if hasattr(self, 'thumbnail_bar'): self.thumbnail_bar.rebuild()
         self._update_window_title()
+
+    def _retirar_y_destruir_pestana(self, index):
+        """Retira una pestaña y libera todos los objetos de su documento.
+
+        QTabWidget.removeTab() solo oculta el widget de la página: el marcador
+        sigue perteneciendo a su QStackedWidget. El scroll y el lienzo, además,
+        viven fuera de ese marcador. Por eso los tres se destruyen de forma
+        explícita tras cancelar cualquier trabajo que todavía los use.
+        """
+        marker = self.tabs.widget(index)
+        if marker is None:
+            return False
+
+        canvas = getattr(marker, "canvas", None)
+        scroll_area = getattr(marker, "scroll_area", None)
+
+        cancel_overlay = getattr(self, "_cancel_overlay_for_canvas", None)
+        if canvas is not None and callable(cancel_overlay):
+            cancel_overlay(canvas)
+        cancel_ai = getattr(self, "_ai_cancel_for_canvas", None)
+        if canvas is not None and callable(cancel_ai):
+            cancel_ai(canvas)
+
+        # Las herramientas con objetos flotantes conservan imágenes auxiliares.
+        # Cancelarlas antes de destruir el lienzo evita dejar esos buffers vivos.
+        tool = getattr(canvas, "current_tool", None)
+        if getattr(tool, "editing", False) and hasattr(tool, "_cancel_edit"):
+            tool._cancel_edit()
+
+        tab_bar = self.tabs.tabBar() if hasattr(self.tabs, "tabBar") else None
+        close_btn = None
+        if tab_bar is not None:
+            close_btn = tab_bar.tabButton(index, tab_bar.ButtonPosition.RightSide)
+
+        self.tabs.removeTab(index)
+
+        # Si era la última pestaña, on_tab_changed(-1) no sustituye los
+        # paneles por los de otro documento: retirar sus referencias expresamente.
+        layers_panel = getattr(self, "layers_panel", None)
+        if layers_panel is not None and getattr(layers_panel, "canvas", None) is canvas:
+            layers_panel.canvas = None
+
+        history_view = getattr(self, "history_view", None)
+        if history_view is not None and getattr(history_view, "canvas", None) is canvas:
+            if hasattr(history_view, "detach"):
+                history_view.detach()
+            history_view.canvas = None
+            history_view.undo_stack = None
+
+        ruler_overlay = getattr(self, "ruler_overlay", None)
+        if ruler_overlay is not None and getattr(ruler_overlay, "canvas", None) is canvas:
+            ruler_overlay.set_empty_mode(True)
+
+        if canvas is not None:
+            for callback in (
+                    "zoom_changed_callback", "cursor_moved_callback",
+                    "crop_changed_callback", "crop_applied_callback",
+                    "selection_changed_callback", "cursor_restore_callback",
+                    "guides_changed_callback", "layers_changed_callback",
+                    "color_picked_callback"):
+                if hasattr(canvas, callback):
+                    setattr(canvas, callback, None)
+            if hasattr(canvas, "ruler_overlay"):
+                canvas.ruler_overlay = None
+            if hasattr(canvas, "current_tool"):
+                canvas.current_tool = None
+            if hasattr(canvas, "_saved_tool"):
+                canvas._saved_tool = None
+
+        if close_btn is not None:
+            try:
+                close_btn.clicked.disconnect()
+            except (RuntimeError, TypeError):
+                pass
+            close_btn.deleteLater()
+
+        if scroll_area is not None:
+            if hasattr(scroll_area, "takeWidget"):
+                scroll_area.takeWidget()
+            if hasattr(scroll_area, "canvas"):
+                scroll_area.canvas = None
+            frame_overlay = getattr(scroll_area, "_frame_overlay", None)
+            if frame_overlay is not None:
+                frame_overlay.canvas = None
+            scroll_area.deleteLater()
+
+        marker.canvas = None
+        marker.scroll_area = None
+        if canvas is not None and hasattr(canvas, "deleteLater"):
+            canvas.deleteLater()
+        if hasattr(marker, "deleteLater"):
+            marker.deleteLater()
+        return True
 
     def _update_window_title(self):
         """Pone el nombre del documento activo en el título de la ventana."""

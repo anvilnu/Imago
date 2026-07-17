@@ -157,7 +157,7 @@ class AccionesMenuArchivo:
                         and getattr(c, 'image_path', None) is None  # ni como imagen
                         and len(c.layers) == 1)                 # Solo su capa Fondo inicial
             if pristine:
-                self.tabs.removeTab(i)
+                self._retirar_y_destruir_pestana(i)
 
     def open_file(self):
         file_path, _ = QFileDialog.getOpenFileName(

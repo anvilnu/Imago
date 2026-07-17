@@ -36,6 +36,7 @@ class DodgeBurnTool(BaseTool):
         self._W = self._H = 0
         self._last = None
         self._dirty = None        # rect sucio (x0, y0, x1, y1) pendiente de recomputar
+        self._stroke_dirty = None # rect acumulado de todo el trazo
         self._mode = "dodge"
         self._range = "midtones"
         self._exposure = 0.25
@@ -70,6 +71,7 @@ class DodgeBurnTool(BaseTool):
         pos = event.position() / self.canvas.zoom_factor
         self._last = (pos.x(), pos.y())
         self._dirty = None
+        self._stroke_dirty = None
         self._stamp(pos.x(), pos.y())
         self._active = True
         self._flush_preview()
@@ -172,6 +174,12 @@ class DodgeBurnTool(BaseTool):
             d = self._dirty
             d[0] = min(d[0], x0); d[1] = min(d[1], y0)
             d[2] = max(d[2], x1); d[3] = max(d[3], y1)
+        if self._stroke_dirty is None:
+            self._stroke_dirty = [x0, y0, x1, y1]
+        else:
+            d = self._stroke_dirty
+            d[0] = min(d[0], x0); d[1] = min(d[1], y0)
+            d[2] = max(d[2], x1); d[3] = max(d[3], y1)
 
     def _flush_preview(self):
         """Vuelca a la imagen de trabajo SOLO el parche modificado desde el
@@ -192,11 +200,13 @@ class DodgeBurnTool(BaseTool):
         out = self._work.convertToFormat(self._orig_fmt)
         self.canvas.layers[self.canvas.active_layer_index].image = out
         after = QImage(out)
-        if self._before is not None and after != self._before:
+        if self._before is not None:
             texto = t("hist.dodge") if self._mode == "dodge" else t("hist.burn")
             self.canvas.undo_stack.push(PaintCommand(
                 self.canvas, self.canvas.active_layer_index,
-                self._before, after, texto, tool_id="dodge_burn", confine=True))
+                self._before, after, texto, tool_id="dodge_burn", confine=True,
+                dirty_rect=self._stroke_dirty))
         self._before = self._coverage = self._mask = None
         self._work = None
         self._dirty = None
+        self._stroke_dirty = None

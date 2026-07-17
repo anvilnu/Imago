@@ -152,6 +152,7 @@ class HerramientasLocalesTests(unittest.TestCase):
         herramienta.mouse_press(_Evento(30, 10))  # fuera de la selección
         herramienta.mouse_release(_Evento(30, 10, botones=Qt.NoButton))
         self.assertEqual(canvas.layers[0].image, antes)
+        self.assertEqual(canvas.undo_stack.count(), 0)
 
         herramienta = DodgeBurnTool(canvas)
         herramienta.mouse_press(_Evento(10, 10))
@@ -183,6 +184,9 @@ class CoberturasPincelTests(unittest.TestCase):
         self.assertIsInstance(pincel._coverage, CoberturaDispersa)
         self.assertLessEqual(pincel._coverage.bytes_asignados, 256 * 256 * 4)
         pincel.mouse_release(_Evento(100, 100, botones=Qt.NoButton))
+        comando = canvas.undo_stack.command(0)
+        self.assertLessEqual(comando.rect.width(), 23)
+        self.assertLessEqual(comando.rect.height(), 23)
 
         sustituir = ReplaceColorTool(canvas)
         sustituir.mouse_press(_Evento(120, 120))

@@ -159,10 +159,10 @@ class HealTool(BaseTool):
         out = self._array_to_qimage(u8).convertToFormat(self._orig_fmt)
         layer.image = out
         after = QImage(out)
-        if after != self._before:
-            self.canvas.undo_stack.push(PaintCommand(
-                self.canvas, self.canvas.active_layer_index,
-                self._before, after, t("hist.heal"), tool_id="heal", confine=True))
+        self.canvas.undo_stack.push(PaintCommand(
+            self.canvas, self.canvas.active_layer_index,
+            self._before, after, t("hist.heal"), tool_id="heal", confine=True,
+            dirty_rect=(x0, y0, x1, y1)))
         self._cleanup()
         self.canvas.update()
 

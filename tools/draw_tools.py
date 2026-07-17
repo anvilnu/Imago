@@ -29,6 +29,7 @@ class PenTool(BaseTool):
         self._coverage = None
         self._kernel_cache = {}
         self._coverage_active = False
+        self._dirty_rect = None   # caja semiabierta conocida de todo el trazo
         # 📐 Último punto pintado (persiste entre trazos): con Mayúsculas pulsada,
         # el siguiente clic traza una LÍNEA RECTA desde aquí hasta el nuevo punto.
         self._last_end_point = None
@@ -98,6 +99,7 @@ class PenTool(BaseTool):
         target = self.canvas.paint_target()
         self.image_before_stroke = QImage(target)
         self.distance_carried = 0.0
+        self._dirty_rect = None
 
         # El motor de cobertura (BGRA) no aplica al pintar en la máscara.
         self._coverage_active = self._use_coverage() and not self._paint_on_mask
@@ -163,6 +165,7 @@ class PenTool(BaseTool):
             tool_id=self.tool_id,
             target=("mask" if getattr(self, "_paint_on_mask", False) else "image"),
             confine=True,        # 🪶 respeta el calado de la selección (borde suave)
+            dirty_rect=self._dirty_rect,
         )
         self.canvas.undo_stack.push(comando)
 
@@ -175,6 +178,28 @@ class PenTool(BaseTool):
         self._coverage = None
         self._kernel_cache = {}
         self._coverage_active = False
+        self._dirty_rect = None
+
+    def _marcar_rect_sucio(self, x0, y0, x1, y1):
+        """Acumula una caja semiabierta conservadora, limitada al destino."""
+        if self.image_before_stroke is None:
+            return
+        ancho = self.image_before_stroke.width()
+        alto = self.image_before_stroke.height()
+        x0 = max(0, int(math.floor(x0)))
+        y0 = max(0, int(math.floor(y0)))
+        x1 = min(ancho, int(math.ceil(x1)))
+        y1 = min(alto, int(math.ceil(y1)))
+        if x1 <= x0 or y1 <= y0:
+            return
+        if self._dirty_rect is None:
+            self._dirty_rect = [x0, y0, x1, y1]
+        else:
+            rect = self._dirty_rect
+            rect[0] = min(rect[0], x0)
+            rect[1] = min(rect[1], y0)
+            rect[2] = max(rect[2], x1)
+            rect[3] = max(rect[3], y1)
 
     # ------------------------------------------------------------------
     # PINCEL DE SELECCIÓN (checkbox del panel del pincel)
@@ -347,6 +372,7 @@ class PenTool(BaseTool):
 
         ksub = kernel[cy0 - y0:cy1 - y0, cx0 - x0:cx1 - x0]
         self._coverage.maximo(cx0, cy0, ksub)
+        self._marcar_rect_sucio(cx0, cy0, cx1, cy1)
         return (cx0, cy0, cx1, cy1)
 
     def _recompose(self, x0, y0, x1, y1):
@@ -467,6 +493,11 @@ class PenTool(BaseTool):
             return
         if radius < 0.6:
             radius = 0.6
+        # Un píxel adicional cubre el antialias del borde de QPainter.
+        self._marcar_rect_sucio(point.x() - radius - 1,
+                                point.y() - radius - 1,
+                                point.x() + radius + 2,
+                                point.y() + radius + 2)
 
         pattern_type = getattr(self.canvas, 'brush_pattern', 'solid')
         shape = self._brush_shape()
@@ -565,6 +596,7 @@ class PencilTool(PenTool):
         target = self.canvas.paint_target()
         self.image_before_stroke = QImage(target)
         self.distance_carried = 0.0
+        self._dirty_rect = None
 
         painter = QPainter(target)
         self.canvas.apply_selection_clip(painter)
@@ -624,10 +656,12 @@ class PencilTool(PenTool):
         return img
 
     def _stamp_pixel(self, painter, x, y, color, size, shape):
+        half = size // 2
+        self._marcar_rect_sucio(x - half, y - half,
+                                x - half + size, y - half + size)
         if size <= 1:
             painter.fillRect(x, y, 1, 1, color)
         elif shape == "square":
-            half = size // 2
             painter.fillRect(x - half, y - half, size, size, color)
         else:
             stamp = self._hard_stamp(size, shape, color)
@@ -730,6 +764,10 @@ class EraserTool(PenTool):
             return
         if radius < 0.6:
             radius = 0.6
+        self._marcar_rect_sucio(point.x() - radius - 1,
+                                point.y() - radius - 1,
+                                point.x() + radius + 2,
+                                point.y() + radius + 2)
 
         color_mode = getattr(self.canvas, 'eraser_color_mode', False)
         bg_mode = getattr(self.canvas, 'eraser_bg_mode', False)
@@ -885,6 +923,7 @@ class ReplaceColorTool(PenTool):
         self.image_before_stroke = QImage(layer_obj.image)
         self.distance_carried = 0.0
         self._kernel_cache = {}
+        self._dirty_rect = None
 
         # Imagen de muestreo: capa activa o composición de todas las capas
         # (fondo TRANSPARENTE, como varita/cubo: el blanco por defecto
@@ -984,4 +1023,5 @@ class ReplaceColorTool(PenTool):
         ksub = kernel[cy0 - y0:cy1 - y0, cx0 - x0:cx1 - x0]
         msub = self._match[cy0:cy1, cx0:cx1]
         self._coverage.maximo(cx0, cy0, ksub * msub)
+        self._marcar_rect_sucio(cx0, cy0, cx1, cy1)
         self._recompose(cx0, cy0, cx1, cy1)

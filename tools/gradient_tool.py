@@ -110,11 +110,15 @@ class GradientTool(BaseTool):
     # --------------------------------------------------------- internos
     def _commit(self):
         after = QImage(self.canvas.paint_target())
-        if self._before is not None and after != self._before:
+        if self._before is not None:
+            dirty = self.canvas._selection_dirty_rect()
+            if dirty is None:
+                dirty = (0, 0, after.width(), after.height())
             self.canvas.undo_stack.push(PaintCommand(
                 self.canvas, self.canvas.active_layer_index,
                 self._before, after, t("hist.gradient"), tool_id="gradient",
-                target=("mask" if self._on_mask else "image"), confine=True))
+                target=("mask" if self._on_mask else "image"), confine=True,
+                dirty_rect=dirty))
         self._cleanup()
 
     def _write_target(self, img):

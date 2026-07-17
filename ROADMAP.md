@@ -256,12 +256,21 @@ prioridades críticas, porque afectan a la integridad del documento.
   regresiones de teselas, memoria independiente del documento, resultado,
   deshacer, selección, alfa y coberturas de las otras herramientas.
 
-- [ ] **Pasar el rectángulo sucio conocido a `PaintCommand`.** El comando
+- [x] **Pasar el rectángulo sucio conocido a `PaintCommand`.** El comando
   guarda únicamente el parche, pero para encontrarlo crea una comparación
   booleana de toda la imagen al soltar cada trazo (~80 MB adicionales en una
   imagen RGBA de 20 MP). Las herramientas ya conocen normalmente la zona
   tocada: admitir un `dirty_rect` opcional y conservar `_diff_rect` como
   respaldo para operaciones que no puedan proporcionarlo.
+  Completado el 17-07-2026. `PaintCommand` acepta `QRect` o una caja semiabierta
+  `(x0, y0, x1, y1)`, la recorta al lienzo y busca el parche exacto solo dentro
+  de ella; `_diff_rect` completo se conserva para las operaciones sin geometría
+  conocida. Pinceles, retoque, cubo, geometrías y operaciones de selección
+  propagan su zona, y el calado también se compone por parche. Los gestos sin
+  cambios se marcan obsoletos y no entran en Historial, sin comparar antes dos
+  `QImage` completos. Medición Windows en 4000×5000, ROI de 101×101: mediana de
+  27,06 ms y ~80 MB temporales a 0,10 ms y ~40 KB. Cubierto por 5 regresiones
+  específicas y la suite completa de 83 pruebas (3 POSIX omitidas en Windows).
 
 - [ ] **Sacar autoguardado, guardado y exportaciones pesadas del hilo GUI.**
   El `QTimer` de autoguardado comprime secuencialmente todas las capas en el

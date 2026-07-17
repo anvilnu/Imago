@@ -41,6 +41,7 @@ class CloneTool(PenTool):
         self._src_img = None        # Imagen de muestreo (capa o composición)
         self._coverage = None
         self._kernel_cache = {}
+        self._dirty_rect = None
         self.distance_carried = 0.0
 
     # ------------------------------------------------------------- ratón
@@ -103,11 +104,13 @@ class CloneTool(PenTool):
         after = QImage(self.canvas.get_active_layer())
         self.canvas.undo_stack.push(PaintCommand(
             self.canvas, self.canvas.active_layer_index, self._before, after,
-            self.history_name, tool_id="clone", confine=True))
+            self.history_name, tool_id="clone", confine=True,
+            dirty_rect=self._dirty_rect))
         self._before = None
         self._src_img = None
         self._coverage = None
         self._kernel_cache = {}
+        self._dirty_rect = None
 
     # ------------------------------------------------------------- motor
     def _begin_stroke(self):
@@ -123,6 +126,7 @@ class CloneTool(PenTool):
             self._before.width(), self._before.height())
         self._kernel_cache = {}
         self.distance_carried = 0.0
+        self._dirty_rect = None
         self._stroking = True
 
     def _clone_stroke(self, p1, p2):
@@ -165,6 +169,12 @@ class CloneTool(PenTool):
             return None
         ksub = kernel[cy0 - y0:cy1 - y0, cx0 - x0:cx1 - x0]
         self._coverage.maximo(cx0, cy0, ksub)
+        if self._dirty_rect is None:
+            self._dirty_rect = [cx0, cy0, cx1, cy1]
+        else:
+            rect = self._dirty_rect
+            rect[0] = min(rect[0], cx0); rect[1] = min(rect[1], cy0)
+            rect[2] = max(rect[2], cx1); rect[3] = max(rect[3], cy1)
         return (cx0, cy0, cx1, cy1)
 
     def _recompose(self, x0, y0, x1, y1):

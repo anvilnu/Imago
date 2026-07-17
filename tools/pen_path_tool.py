@@ -304,10 +304,14 @@ class PenPathTool(BaseTool):
         painter.end()
 
         after = QImage(active_layer)
+        pad = float(self.canvas.brush_size) / 2.0 + 2.0
+        dirty = path.boundingRect().adjusted(
+            -pad, -pad, pad, pad).toAlignedRect()
         self.canvas.undo_stack.push(PaintCommand(
             self.canvas, self.canvas.active_layer_index, before, after,
             t("hist.pen_path"), tool_id="pen_path",
-            target=("mask" if on_mask else "image"), confine=True))
+            target=("mask" if on_mask else "image"), confine=True,
+            dirty_rect=dirty))
 
     def _make_selection(self):
         """Convierte el trazo (cerrado) en seleccion, integrandolo con todo

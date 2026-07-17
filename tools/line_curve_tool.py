@@ -285,11 +285,17 @@ class LineCurveTool(BaseTool):
         try:
             self._recompose()
             image_after = QImage(self._read_target())
+            path = self._build_path()
+            pad = max(float(self.canvas.brush_size) / 2.0 + 2.0,
+                      self._cap_width() * 3.0 + 2.0)
+            dirty = path.boundingRect().adjusted(
+                -pad, -pad, pad, pad).toAlignedRect()
             self.canvas.undo_stack.push(PaintCommand(
                 self.canvas, self.canvas.active_layer_index,
                 self.image_before, image_after, t("hist.line_curve"),
                 tool_id=self.tool_id,
-                target=("mask" if self._on_mask else "image"), confine=True))
+                target=("mask" if self._on_mask else "image"), confine=True,
+                dirty_rect=dirty))
         finally:
             self._end_edit()
             self._finishing = False

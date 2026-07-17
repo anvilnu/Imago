@@ -667,3 +667,14 @@ Photopea (julio 2026). Ir marcando `[x]` según se implementen.
   inicio. Se mantienen selección, bloqueo alfa, precisión flotante, preview y
   deshacer. Cubierto por 5 regresiones; suite completa: 78 pruebas en Windows,
   3 POSIX omitidas condicionalmente.
+- [x] **Rectángulo sucio directo en `PaintCommand`** — HECHO (17-07-2026).
+  Las herramientas de pintura, retoque, relleno y geometría, además de las
+  operaciones sobre selección, entregan ahora una caja conservadora al comando
+  de historial. Este sigue calculando el parche exacto, pero compara solo el
+  ROI; las rutas sin geometría conocida mantienen el análisis completo como
+  respaldo. El calado mezcla también únicamente el parche y conserva el formato
+  original. Los gestos sin cambio se marcan obsoletos, por lo que no añaden un
+  paso vacío ni necesitan un `QImage != QImage` previo. En una imagen RGBA de
+  4000×5000 con zona de 101×101, la detección baja de 27,06 ms y unos 80 MB
+  temporales a 0,10 ms y unos 40 KB. Cubierto por 5 regresiones específicas;
+  suite completa: 83 pruebas en Windows, 3 POSIX omitidas condicionalmente.

@@ -38,6 +38,7 @@ class AirbrushTool(BaseTool):
         self._before = None
         self._density = None
         self._kernel_cache = {}
+        self._dirty_rect = None
         self._timer = QTimer(canvas)
         self._timer.setInterval(self.INTERVAL_MS)
         self._timer.timeout.connect(self._spray)
@@ -58,6 +59,7 @@ class AirbrushTool(BaseTool):
         self._before = QImage(layer)
         self._density = CoberturaDispersa(layer.width(), layer.height())
         self._kernel_cache = {}
+        self._dirty_rect = None
         self._active = True
         self._timer.start()
 
@@ -83,10 +85,11 @@ class AirbrushTool(BaseTool):
                 self.canvas, self.canvas.active_layer_index, self._before, after,
                 t("hist.airbrush"), tool_id="airbrush",
                 target=("mask" if getattr(self, "_on_mask", False) else "image"),
-                confine=True))
+                confine=True, dirty_rect=self._dirty_rect))
             self._before = None
             self._density = None
             self._kernel_cache = {}
+            self._dirty_rect = None
 
     def _spray(self):
         """Un 'tick': reparte la dosis de este instante a lo largo del camino
@@ -136,6 +139,12 @@ class AirbrushTool(BaseTool):
             add = ksub * dose
 
         self._density.sumar_saturado(cx0, cy0, add)
+        if self._dirty_rect is None:
+            self._dirty_rect = [cx0, cy0, cx1, cy1]
+        else:
+            rect = self._dirty_rect
+            rect[0] = min(rect[0], cx0); rect[1] = min(rect[1], cy0)
+            rect[2] = max(rect[2], cx1); rect[3] = max(rect[3], cy1)
         self._recompose(cx0, cy0, cx1, cy1)
 
     def _recompose(self, x0, y0, x1, y1):

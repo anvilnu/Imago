@@ -220,10 +220,14 @@ class ShapeTool(BaseTool):
         self._recompose()
         image_after = QImage(self._read_target())
         name = get_shape_name(self.shape_id) or t("tool.name.shapes")
+        pad = float(self.canvas.brush_size) / 2.0 + 2.0
+        dirty = self._display_path().boundingRect().adjusted(
+            -pad, -pad, pad, pad).toAlignedRect()
         self.canvas.undo_stack.push(PaintCommand(
             self.canvas, self.canvas.active_layer_index,
             self.image_before, image_after, name, tool_id=self.tool_id,
-            target=("mask" if self._on_mask else "image"), confine=True))
+            target=("mask" if self._on_mask else "image"), confine=True,
+            dirty_rect=dirty))
         self._end_edit()
 
     def _cancel_edit(self):

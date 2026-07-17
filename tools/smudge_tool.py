@@ -44,6 +44,7 @@ class SmudgeTool(BaseTool):
         self._lock = False        # bloqueo de transparencia del trazo en curso
         self._work = None         # QImage de trabajo del trazo (parches in place)
         self._dirty = False       # hubo cambios pendientes de repintar
+        self._stroke_dirty = None # caja semiabierta de todo el trazo
 
     # ------------------------------------------------------------- ratón
     def mouse_press(self, event):
@@ -67,6 +68,7 @@ class SmudgeTool(BaseTool):
         self._buf = ImagenPremultiplicadaDispersa(img)
         self.canvas.layers[self.canvas.active_layer_index].image = self._work
         self._dirty = False
+        self._stroke_dirty = None
         self._build_mask()
         self._strength = max(0.0, min(0.99,
                             getattr(self.canvas, 'smudge_strength', 50) / 100.0))
@@ -189,6 +191,15 @@ class SmudgeTool(BaseTool):
             sub[..., 3] = original[..., 3]
         escribir_rgba_region(self._work, bx0, by0, sub)
         self._dirty = True
+        self._marcar_sucio_trazo(bx0, by0, bx1, by1)
+
+    def _marcar_sucio_trazo(self, x0, y0, x1, y1):
+        if self._stroke_dirty is None:
+            self._stroke_dirty = [x0, y0, x1, y1]
+        else:
+            rect = self._stroke_dirty
+            rect[0] = min(rect[0], x0); rect[1] = min(rect[1], y0)
+            rect[2] = max(rect[2], x1); rect[3] = max(rect[3], y1)
 
     # --------------------------------------------------------- volcado
     def _flush_preview(self):
@@ -206,11 +217,13 @@ class SmudgeTool(BaseTool):
         out = self._work.convertToFormat(self._orig_fmt)
         self.canvas.layers[self.canvas.active_layer_index].image = out
         after = QImage(out)
-        if self._before is not None and after != self._before:
+        if self._before is not None:
             self.canvas.undo_stack.push(PaintCommand(
                 self.canvas, self.canvas.active_layer_index,
-                self._before, after, t("hist.smudge"), tool_id="smudge", confine=True))
+                self._before, after, t("hist.smudge"), tool_id="smudge",
+                confine=True, dirty_rect=self._stroke_dirty))
         self._before = self._buf = self._carry = self._mask = None
         self._lock = False
         self._work = None
         self._dirty = False
+        self._stroke_dirty = None

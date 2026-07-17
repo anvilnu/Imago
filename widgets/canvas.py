@@ -848,25 +848,31 @@ class Canvas(QWidget):
         else:
             painter.setClipPath(self.selection)
 
-    def confine_to_soft(self, before, after):
+    def confine_to_soft(self, before, after, offset=None):
         """Mezcla 'after' sobre 'before' a través de la máscara suave de selección:
         resultado = before·(1−m) + after·m. Da bordes suaves a los trazos. Si no
-        hay calado, devuelve 'after' tal cual."""
+        hay calado, devuelve 'after' tal cual. ``offset`` permite procesar solo
+        un parche cuyas coordenadas de origen pertenecen al lienzo completo."""
         if self.selection_soft is None:
             return after
         import numpy as np
         from PySide6.QtGui import QImage
-        W, H = self.base_width, self.base_height
+        if before.size() != after.size():
+            return after
+        W, H = before.width(), before.height()
+        ox = offset.x() if offset is not None else 0
+        oy = offset.y() if offset is not None else 0
+        formato_original = after.format()
         b = before.convertToFormat(QImage.Format_RGBA8888)
         a = after.convertToFormat(QImage.Format_RGBA8888)
         ba = np.frombuffer(b.constBits(), np.uint8).reshape(H, b.bytesPerLine())[:, :W * 4].reshape(H, W, 4).astype(np.float32)
         aa = np.frombuffer(a.constBits(), np.uint8).reshape(H, a.bytesPerLine())[:, :W * 4].reshape(H, W, 4).astype(np.float32)
-        m = self.selection_soft
+        m = self.selection_soft.copy(ox, oy, W, H)
         mbpl = m.bytesPerLine()
         mm = (np.frombuffer(m.constBits(), np.uint8).reshape(H, mbpl)[:, :W].astype(np.float32) / 255.0)[..., None]
         out = ba * (1.0 - mm) + aa * mm
         out8 = np.ascontiguousarray(np.clip(out + 0.5, 0, 255).astype(np.uint8))
-        return QImage(out8.data, W, H, 4 * W, QImage.Format_RGBA8888).copy().convertToFormat(QImage.Format_ARGB32)
+        return QImage(out8.data, W, H, 4 * W, QImage.Format_RGBA8888).copy().convertToFormat(formato_original)
 
     def select_all(self):
         """Selecciona el lienzo completo (Ctrl+A). Deshacible."""
@@ -944,7 +950,8 @@ class Canvas(QWidget):
         from tools.commands import PaintCommand
         self.undo_stack.push(PaintCommand(
             self, self.active_layer_index, before, after,
-            t("hist.cut_sel"), tool_id="cut"))
+            t("hist.cut_sel"), tool_id="cut",
+            dirty_rect=self._selection_dirty_rect()))
         return True
 
     def _clear_selection_pixels(self, image):
@@ -961,6 +968,16 @@ class Canvas(QWidget):
             p.fillRect(0, 0, self.base_width, self.base_height, Qt.transparent)
         p.end()
 
+    def _selection_dirty_rect(self):
+        """Caja conservadora de la selección, incluida su banda de calado."""
+        if self.selection is None or self.selection.isEmpty():
+            return None
+        rect = self.selection.boundingRect()
+        if self.selection_soft is not None:
+            pad = int(abs(self.selection_feather_radius) * 3) + 2
+            rect = rect.adjusted(-pad, -pad, pad, pad)
+        return rect.toAlignedRect()
+
     def delete_selection(self):
         """Borra los píxeles dentro de la selección en la capa activa
         (deshacible). Devuelve False si no hay selección."""
@@ -973,7 +990,8 @@ class Canvas(QWidget):
         from tools.commands import PaintCommand
         self.undo_stack.push(PaintCommand(
             self, self.active_layer_index, before, after,
-            t("hist.del_sel"), tool_id="delete"))
+            t("hist.del_sel"), tool_id="delete",
+            dirty_rect=self._selection_dirty_rect()))
         return True
 
     def fill_selection(self, color=None):
@@ -1004,7 +1022,8 @@ class Canvas(QWidget):
         from tools.commands import PaintCommand
         self.undo_stack.push(PaintCommand(
             self, self.active_layer_index, before, after,
-            t("hist.fill_sel"), tool_id="fill"))
+            t("hist.fill_sel"), tool_id="fill",
+            dirty_rect=self._selection_dirty_rect()))
         return True
 
     # ---------------------------------------------------------- Calado (feather)

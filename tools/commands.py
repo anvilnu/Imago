@@ -4,23 +4,55 @@ from PySide6.QtCore import QRect
 from i18n import t
 
 
-def _diff_rect(old, new):
+_DIRTY_RECT_AUTO = object()
+
+
+def _normalizar_dirty_rect(rect, limites):
+    """Convierte un QRect o una caja (x0, y0, x1, y1) semiabierta en QRect,
+    recortado a ``limites``. ``None`` representa una zona conocida vacía."""
+    if rect is None:
+        return QRect()
+    if isinstance(rect, QRect):
+        candidato = QRect(rect)
+    else:
+        try:
+            x0, y0, x1, y1 = rect
+            candidato = QRect(int(x0), int(y0), int(x1) - int(x0),
+                              int(y1) - int(y0))
+        except (TypeError, ValueError):
+            raise TypeError(
+                "dirty_rect debe ser QRect, (x0, y0, x1, y1) o None") from None
+    return candidato.normalized().intersected(limites)
+
+
+def _diff_rect(old, new, limit_rect=None):
     """Rectángulo envolvente (QRect) de los píxeles que difieren entre dos
-    QImage del mismo tamaño y formato, o None si son idénticas. Comparación
-    vectorizada byte a byte con NumPy (rápida incluso en imágenes grandes)."""
+    QImage del mismo tamaño y formato, o None si son idénticas. Si se facilita
+    ``limit_rect``, solo compara esa región y devuelve coordenadas globales."""
     import numpy as np
     H, W = old.height(), old.width()
     bpp = old.depth() // 8
-    a = np.frombuffer(old.constBits(), np.uint8).reshape(H, old.bytesPerLine())[:, :W * bpp]
-    b = np.frombuffer(new.constBits(), np.uint8).reshape(H, new.bytesPerLine())[:, :W * bpp]
+    if limit_rect is None:
+        zona = QRect(0, 0, W, H)
+    else:
+        zona = QRect(limit_rect).intersected(QRect(0, 0, W, H))
+    if zona.isEmpty():
+        return None
+    x0, y0, ancho, alto = zona.x(), zona.y(), zona.width(), zona.height()
+    byte0, byte1 = x0 * bpp, (x0 + ancho) * bpp
+    a = np.frombuffer(old.constBits(), np.uint8).reshape(
+        H, old.bytesPerLine())[y0:y0 + alto, byte0:byte1]
+    b = np.frombuffer(new.constBits(), np.uint8).reshape(
+        H, new.bytesPerLine())[y0:y0 + alto, byte0:byte1]
     changed = (a != b)
     rows = np.flatnonzero(changed.any(axis=1))
     if rows.size == 0:
         return None
-    y0, y1 = int(rows[0]), int(rows[-1])
-    cols = np.flatnonzero(changed[y0:y1 + 1].any(axis=0))
-    x0, x1 = int(cols[0]) // bpp, int(cols[-1]) // bpp
-    return QRect(x0, y0, x1 - x0 + 1, y1 - y0 + 1)
+    ry0, ry1 = int(rows[0]), int(rows[-1])
+    cols = np.flatnonzero(changed[ry0:ry1 + 1].any(axis=0))
+    rx0, rx1 = int(cols[0]) // bpp, int(cols[-1]) // bpp
+    return QRect(x0 + rx0, y0 + ry0,
+                 rx1 - rx0 + 1, ry1 - ry0 + 1)
 
 
 class PaintCommand(QUndoCommand):
@@ -30,7 +62,8 @@ class PaintCommand(QUndoCommand):
     enteras de la capa por trazo, lo que disparaba la RAM en imágenes grandes."""
 
     def __init__(self, canvas, layer_index, old_image, new_image, description=None,
-                 tool_id=None, target="image", confine=False):
+                 tool_id=None, target="image", confine=False,
+                 dirty_rect=_DIRTY_RECT_AUTO):
         if description is None:
             description = t("hist.draw", default="Dibujar")
         # 🎭 'target': "image" pinta los píxeles de la capa; "mask" pinta su
@@ -45,12 +78,6 @@ class PaintCommand(QUndoCommand):
         old_full = QImage(old_image)
         new_full = QImage(new_image)
 
-        # 🪶 'confine': si hay CALADO de selección activo y se pinta sobre los
-        # píxeles (no la máscara), el trazo se confina con borde suave mezclando
-        # con la máscara suave al cerrar el trazo (resultado = antes·(1−m)+después·m).
-        if confine and target == "image" and getattr(canvas, "selection_soft", None) is not None:
-            new_full = QImage(canvas.confine_to_soft(old_full, new_full))
-
         # Recorte al rectángulo modificado. Convenio de almacenamiento:
         #   rect + parches      → caso normal (solo la zona tocada).
         #   rect=None, parches=None → el trazo no cambió ningún píxel.
@@ -58,17 +85,58 @@ class PaintCommand(QUndoCommand):
         #     se conservan las imágenes completas, como antaño.
         if (old_full.size() == new_full.size()
                 and old_full.format() == new_full.format()):
-            self.rect = _diff_rect(old_full, new_full)
-            if self.rect is None:
-                self.old_image = None
-                self.new_image = None
+            limites = QRect(0, 0, old_full.width(), old_full.height())
+            candidato = (_normalizar_dirty_rect(dirty_rect, limites)
+                          if dirty_rect is not _DIRTY_RECT_AUTO else None)
+            calado = (confine and target == "image"
+                      and getattr(canvas, "selection_soft", None) is not None)
+
+            if dirty_rect is not _DIRTY_RECT_AUTO:
+                # Camino rápido: las herramientas locales ya conocen una caja
+                # conservadora. Incluso el calado se mezcla solo dentro de ella.
+                if candidato.isEmpty():
+                    self.rect = None
+                    self.old_image = None
+                    self.new_image = None
+                else:
+                    old_patch = old_full.copy(candidato)
+                    new_patch = new_full.copy(candidato)
+                    if calado:
+                        new_patch = QImage(canvas.confine_to_soft(
+                            old_patch, new_patch, candidato.topLeft()))
+                    rect_local = _diff_rect(old_patch, new_patch)
+                    if rect_local is None:
+                        self.rect = None
+                        self.old_image = None
+                        self.new_image = None
+                    else:
+                        self.rect = QRect(
+                            candidato.x() + rect_local.x(),
+                            candidato.y() + rect_local.y(),
+                            rect_local.width(), rect_local.height())
+                        self.old_image = old_patch.copy(rect_local)
+                        self.new_image = new_patch.copy(rect_local)
             else:
-                self.old_image = old_full.copy(self.rect)
-                self.new_image = new_full.copy(self.rect)
+                # Respaldo para operaciones que no conocen su zona tocada.
+                if calado:
+                    new_full = QImage(canvas.confine_to_soft(old_full, new_full))
+                self.rect = _diff_rect(old_full, new_full)
+                if self.rect is None:
+                    self.old_image = None
+                    self.new_image = None
+                else:
+                    self.old_image = old_full.copy(self.rect)
+                    self.new_image = new_full.copy(self.rect)
         else:
             self.rect = None
             self.old_image = old_full
             self.new_image = new_full
+
+        # QUndoStack descarta comandos obsoletos al apilarlos: así las
+        # herramientas pueden evitar una comparación global previa y un gesto
+        # que no alteró ningún píxel tampoco ensucia el historial.
+        if self.old_image is None and self.new_image is None:
+            self.setObsolete(True)
 
         # 🌟 Guardamos el ID de la herramienta responsable del comando
         self.tool_id = tool_id

@@ -68,14 +68,16 @@ class BucketTool(BaseTool):
         image_before = QImage(image)
         pattern_style = getattr(self.canvas, "bucket_pattern", Qt.BrushStyle.SolidPattern)
 
-        self.execute_flood_fill(image, sample, start_point, fill_color,
-                                pattern_style, tol, contiguous, antialias, expand)
+        dirty = self.execute_flood_fill(
+            image, sample, start_point, fill_color,
+            pattern_style, tol, contiguous, antialias, expand)
 
         image_after = QImage(image)
         self.canvas.undo_stack.push(PaintCommand(
             self.canvas, self.canvas.active_layer_index,
             image_before, image_after, self.history_name, tool_id=self.tool_id,
-            target=("mask" if on_mask else "image"), confine=True))
+            target=("mask" if on_mask else "image"), confine=True,
+            dirty_rect=dirty))
         self.canvas.update()
 
     # ------------------------------------------------------------------
@@ -112,8 +114,9 @@ class BucketTool(BaseTool):
         """Genera la máscara de relleno (numpy) y compone el color/patrón sobre
         la capa activa, respetando la selección. Si algo falla, usa el clásico."""
         try:
-            self._flood_fill_numpy(image, sample, start_pt, fill_color,
-                                   pattern_style, tol, contiguous, antialias, expand)
+            return self._flood_fill_numpy(
+                image, sample, start_pt, fill_color,
+                pattern_style, tol, contiguous, antialias, expand)
         except Exception:
             # Red de seguridad: relleno clásico (contiguo, capa activa, sin AA
             # ni expansión). Se REGISTRA el motivo en imago_crash.log: sin esto,
@@ -128,8 +131,8 @@ class BucketTool(BaseTool):
             except Exception:
                 pass
             target_rgba = image.pixel(start_pt)
-            self._flood_fill_dfs(image, start_pt, target_rgba, fill_color,
-                                 pattern_style, tol)
+            return self._flood_fill_dfs(
+                image, start_pt, target_rgba, fill_color, pattern_style, tol)
 
     def _flood_fill_numpy(self, image, sample, start_pt, fill_color,
                           pattern_style, tol, contiguous, antialias, expand=0):
@@ -151,6 +154,16 @@ class BucketTool(BaseTool):
         else:
             alpha = np.where(region, np.uint32(255), np.uint32(0))
 
+        # Caja sin materializar dos vectores de coordenadas por cada píxel
+        # relleno (np.nonzero sobre 20 MP podría añadir cientos de MB).
+        rows = np.flatnonzero(alpha.any(axis=1))
+        if rows.size == 0:
+            dirty = None
+        else:
+            y0, y1 = int(rows[0]), int(rows[-1])
+            cols = np.flatnonzero(alpha[y0:y1 + 1].any(axis=0))
+            dirty = (int(cols[0]), y0, int(cols[-1]) + 1, y1 + 1)
+
         # Máscara ARGB32: negro con alfa = cobertura (0xAA000000)
         mask_u32 = np.ascontiguousarray((alpha << 24).astype(np.uint32))
         mask_img = QImage(mask_u32.data, W, H, W * 4, QImage.Format.Format_ARGB32)
@@ -171,6 +184,7 @@ class BucketTool(BaseTool):
         self.canvas.apply_selection_clip(lp)
         lp.drawImage(0, 0, pattern_layer)
         lp.end()
+        return dirty
 
     # ------------------------------------------------------------------
     # Respaldo clásico (sin numpy): relleno por inundación píxel a píxel
@@ -183,6 +197,7 @@ class BucketTool(BaseTool):
         visited = bytearray(width * height)
         mask = QImage(width, height, QImage.Format.Format_ARGB32)
         mask.fill(Qt.GlobalColor.transparent)
+        min_x, min_y, max_x, max_y = width, height, -1, -1
 
         while stack:
             cx, cy = stack.pop()
@@ -192,6 +207,8 @@ class BucketTool(BaseTool):
             visited[idx] = 1
             if self.is_pixel_similar(image.pixel(cx, cy), target_rgba, tol):
                 mask.setPixel(cx, cy, opaque_black)
+                min_x = min(min_x, cx); min_y = min(min_y, cy)
+                max_x = max(max_x, cx); max_y = max(max_y, cy)
                 if cx > 0: stack.append((cx - 1, cy))
                 if cx < width - 1: stack.append((cx + 1, cy))
                 if cy > 0: stack.append((cx, cy - 1))
@@ -211,6 +228,9 @@ class BucketTool(BaseTool):
         self.canvas.apply_selection_clip(layer_painter)
         layer_painter.drawImage(0, 0, pattern_layer)
         layer_painter.end()
+        if max_x < min_x or max_y < min_y:
+            return None
+        return (min_x, min_y, max_x + 1, max_y + 1)
 
     def is_pixel_similar(self, current_rgba, target_rgba, tolerance):
         """Distancia Chebyshev por canal RGBA (incluye alfa para no desbordar

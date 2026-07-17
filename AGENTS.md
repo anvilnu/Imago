@@ -481,8 +481,12 @@ diera problemas, el usuario puede forzar el backend a mano con
   contexto (`update_edit_actions_state`, `update_layer_menu_state`, conectadas a
   cambios de selección/portapapeles/pila y al `aboutToShow` de los menús).
   Dos INVARIANTES a respetar: (1) `PaintCommand` guarda solo el PARCHE del
-  rectángulo modificado — pásale siempre el antes/después de la capa COMPLETA y
-  él recorta; (2) su undo/redo REEMPLAZA el objeto `layer.image` (nunca pintar
+  rectángulo modificado — pásale siempre el antes/después de la capa COMPLETA y,
+  si la operación conoce una caja conservadora, `dirty_rect=QRect(...)` o
+  `(x0, y0, x1, y1)` semiabierto; él la recorta y afina el parche exacto. No
+  hagas antes `after != before`, porque volvería a recorrer toda la imagen; los
+  comandos vacíos se marcan obsoletos y `QUndoStack` los descarta. (2) Su
+  undo/redo REEMPLAZA el objeto `layer.image` (nunca pintar
   in place), porque `MoveTool` detecta cambios externos por identidad del QImage.
   El límite de pasos es configurable (Preferencias → Historial, clave QSettings
   `undo_limit`, 0 = sin límite) y se aplica al CREAR cada lienzo (Qt solo

@@ -39,6 +39,7 @@ class SpongeTool(BaseTool):
         self._orig_fmt = None
         self._work = None         # QImage de trabajo del trazo (parches in place)
         self._dirty = None        # bbox (x0, y0, x1, y1) pendiente de volcar
+        self._stroke_dirty = None # bbox acumulada de todo el trazo
 
     # ------------------------------------------------------------- ratón
     def mouse_press(self, event):
@@ -57,6 +58,7 @@ class SpongeTool(BaseTool):
         self._work = img.convertToFormat(QImage.Format_RGBA8888)
         self.canvas.layers[self.canvas.active_layer_index].image = self._work
         self._dirty = None
+        self._stroke_dirty = None
         self._build_mask()
 
         self._mode = getattr(self.canvas, 'sponge_mode', 'desaturate')
@@ -166,6 +168,12 @@ class SpongeTool(BaseTool):
             d = self._dirty
             d[0] = min(d[0], x0); d[1] = min(d[1], y0)
             d[2] = max(d[2], x1); d[3] = max(d[3], y1)
+        if self._stroke_dirty is None:
+            self._stroke_dirty = [x0, y0, x1, y1]
+        else:
+            d = self._stroke_dirty
+            d[0] = min(d[0], x0); d[1] = min(d[1], y0)
+            d[2] = max(d[2], x1); d[3] = max(d[3], y1)
 
     def _flush_preview(self):
         """Vuelca a la imagen de trabajo SOLO el parche modificado desde el
@@ -186,12 +194,14 @@ class SpongeTool(BaseTool):
         out = self._work.convertToFormat(self._orig_fmt)
         self.canvas.layers[self.canvas.active_layer_index].image = out
         after = QImage(out)
-        if self._before is not None and after != self._before:
+        if self._before is not None:
             texto = (t("hist.sponge_desat") if self._mode == "desaturate"
                      else t("hist.sponge_sat"))
             self.canvas.undo_stack.push(PaintCommand(
                 self.canvas, self.canvas.active_layer_index,
-                self._before, after, texto, tool_id="sponge", confine=True))
+                self._before, after, texto, tool_id="sponge", confine=True,
+                dirty_rect=self._stroke_dirty))
         self._before = self._coverage = self._mask = None
         self._work = None
         self._dirty = None
+        self._stroke_dirty = None

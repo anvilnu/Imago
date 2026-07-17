@@ -36,11 +36,6 @@ __pycache__/
 Thumbs.db
 Desktop.ini
 
-# Ayudas y planificación personales
-/AGENTS.md
-/CLAUDE.md
-/COMO_ACTUALIZAR.md
-/HISTORIAL.md
-/ROADMAP.md
+# Configuración local de asistentes
 /.agents/
 /.codex/

@@ -637,3 +637,12 @@ Photopea (julio 2026). Ir marcando `[x]` según se implementen.
   Tres regresiones comprueban grupos anidados, visibilidad individual y que el
   píxel exportado procede del resultado con efectos; suite completa: 65 pruebas
   en Windows, 3 POSIX omitidas condicionalmente.
+- [x] **Identidad única de ajustes y traducciones Qt** — HECHO (17-07-2026).
+  `AVNSoft/Imago` gobierna ahora tanto `QSettings` como `QStandardPaths`, evitando
+  que el idioma propio y los textos nativos de Qt lean almacenes distintos. Las
+  preferencias existentes en `MiEstudio/Imago` se copian una sola vez con
+  prioridad, sin borrar el origen y sin confirmar la migración ante un error de
+  sincronización. El modo portable sigue aislado en `datos/Imago.ini`, y de ese
+  mismo archivo salen tema, preferencias e idioma de `i18n`/`QTranslator`.
+  Cubierto por 4 regresiones; suite completa: 70 pruebas en Windows, 3 POSIX
+  omitidas condicionalmente.

@@ -7,15 +7,19 @@ IA descargados y copias de autoguardado) se guardan en una carpeta "datos" JUNTO
 al .exe, en formato INI, SIN tocar el registro de Windows ni AppData. Asi la app
 no deja rastro en el sistema y es trasladable (USB, o varias copias aisladas).
 
-En desarrollo ("python main.py") o en la version INSTALADA (sin marcador) se usan
-las rutas ESTANDAR del sistema de siempre: el registro para los ajustes y AppData
-para los modelos y el autoguardado. La version instalada NO se ve afectada: sin
-marcador, es_portable() es False y todo se comporta exactamente igual que antes.
+En desarrollo ("python main.py") o en la versión INSTALADA (sin marcador) se usan
+las rutas ESTÁNDAR del sistema: AVNSoft/Imago tanto para el registro de ajustes
+como para QStandardPaths. Las preferencias de la identidad anterior
+MiEstudio/Imago se migran una sola vez y se conservan como respaldo.
 """
 import os
 import sys
 
 _MARCADOR = "portable.txt"
+ORGANIZACION = "AVNSoft"
+APLICACION = "Imago"
+_ORGANIZACION_ANTERIOR = "MiEstudio"
+_CLAVE_MIGRACION = "_internal/migrated_miestudio_v1"
 
 
 def _dir_exe():
@@ -49,17 +53,60 @@ def base_datos():
     return QStandardPaths.writableLocation(QStandardPaths.AppDataLocation)
 
 
+def _settings_nativos(organizacion):
+    """Construye el almacén nativo indicado; separado para poder probar la
+    migración sin leer ni escribir las preferencias reales del sistema."""
+    from PySide6.QtCore import QSettings
+    return QSettings(organizacion, APLICACION)
+
+
+def _migrar_ajustes(destino, anterior):
+    """Copia una sola vez MiEstudio/Imago hacia la identidad definitiva.
+
+    El almacén anterior era la fuente usada por Preferencias, por lo que sus
+    valores prevalecen si también existe una clave antigua bajo AVNSoft. No se
+    borra: queda como respaldo y versiones anteriores de Imago pueden seguir
+    leyéndolo. Devuelve True si realizó la migración.
+    """
+    from PySide6.QtCore import QSettings
+    if destino.value(_CLAVE_MIGRACION, False, type=bool):
+        return False
+    anterior.sync()
+    if anterior.status() != QSettings.Status.NoError:
+        return False
+    for clave in anterior.allKeys():
+        destino.setValue(clave, anterior.value(clave))
+    destino.sync()
+    if destino.status() != QSettings.Status.NoError:
+        return False
+    destino.setValue(_CLAVE_MIGRACION, True)
+    destino.sync()
+    return destino.status() == QSettings.Status.NoError
+
+
 def settings():
     """QSettings de Imago (crea una instancia nueva en cada llamada, como el resto
     del codigo). En modo portable escribe en <exe>\\datos\\Imago.ini (formato INI,
-    sin tocar el registro); si no, en el registro nativo ("MiEstudio"/"Imago").
+    sin tocar el registro); si no, usa la identidad única "AVNSoft"/"Imago" y
+    migra una vez los valores del antiguo "MiEstudio"/"Imago".
 
-    OJO: el constructor de 2 argumentos QSettings("MiEstudio", "Imago") IGNORA
+    OJO: el constructor de 2 argumentos QSettings(organización, aplicación) IGNORA
     setDefaultFormat y siempre usa el formato nativo (registro en Windows); por eso
     el modo portable usa el constructor explicito QSettings(fichero, IniFormat).
     """
     from PySide6.QtCore import QSettings
     if es_portable():
-        return QSettings(os.path.join(base_datos(), "Imago.ini"),
+        return QSettings(os.path.join(base_datos(), APLICACION + ".ini"),
                          QSettings.Format.IniFormat)
-    return QSettings("MiEstudio", "Imago")
+    actual = _settings_nativos(ORGANIZACION)
+    anterior = _settings_nativos(_ORGANIZACION_ANTERIOR)
+    _migrar_ajustes(actual, anterior)
+    return actual
+
+
+def idioma(almacen=None):
+    """Idioma configurado para textos propios y traducciones nativas de Qt."""
+    if almacen is None:
+        almacen = settings()
+    valor = str(almacen.value("language", "es"))
+    return valor if valor in ("es", "en", "fr") else "es"

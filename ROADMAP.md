@@ -202,13 +202,22 @@ prioridades críticas, porque afectan a la integridad del documento.
   resultado. Cubierto por 3 regresiones de grupos anidados, visibilidad propia,
   duraciones y render con efectos.
 
-- [ ] **Unificar la identidad de QSettings y el traductor de Qt.** Los ajustes
+- [x] **Unificar la identidad de QSettings y el traductor de Qt.** Los ajustes
   usan `app_paths.settings()` (`MiEstudio/Imago` o INI portable), pero el
   traductor lee un `QSettings()` ligado a `AVNSoft/Imago`. El idioma propio
   puede cambiar sin que cambien los textos nativos de Qt, y el modo portable
   queda ignorado. Leer siempre mediante `app_paths.settings()` y decidir una
   única organización para ajustes y `QStandardPaths`, con migración de valores
   existentes si se cambia.
+  Completado el 17-07-2026. `AVNSoft/Imago` es ahora la identidad normal única
+  para `QSettings` y `QStandardPaths`, conservando así la ubicación existente de
+  modelos y recuperaciones. `app_paths.settings()` migra una sola vez todas las
+  preferencias de `MiEstudio/Imago`, con prioridad para esos valores y sin borrar
+  el almacén anterior; solo confirma la migración si las sincronizaciones no dan
+  error. `app_paths.idioma()` alimenta tanto `i18n` como `QTranslator`, incluido
+  `datos/Imago.ini` en el ejecutable portable, que continúa sin tocar el registro.
+  Cubierto por 4 regresiones de migración, identidad, aislamiento portable y
+  fallback de idioma.
 
 ### Rendimiento y memoria
 

@@ -454,6 +454,11 @@ diera problemas, el usuario puede forzar el backend a mano con
   los demás (ejemplo: la tolerancia del borrador solo aparece en los modos
   "color" y "fondos", no en el normal). Sincroniza el estado al cambiar de
   herramienta y de pestaña.
+- **Ajustes, rutas e idioma:** la identidad normal única es `AVNSoft/Imago` para
+  `QSettings` y `QStandardPaths`; usa siempre `app_paths.settings()` y
+  `app_paths.idioma()`, nunca un `QSettings()` pelado. En modo portable deben
+  permanecer aislados en `datos/Imago.ini`, sin leer el registro. La migración
+  desde el antiguo `MiEstudio/Imago` es conservadora y no borra el origen.
 - **Deshacer/rehacer:** `QUndoStack` en el canvas; los comandos de píxeles viven
   en `tools/commands.py` y los de capas/imagen completa en
   `models/layer_commands.py`. Las acciones de menú se habilitan/deshabilitan por

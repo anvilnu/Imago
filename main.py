@@ -214,7 +214,7 @@ class MainWindow(AccionesMenuIA, AccionesMenuAjustes, OpcionesHerramientas,
         # .exe en modo portable (ver app_paths.py).
         self.settings = app_paths.settings()
         from i18n import set_language
-        set_language(str(self.settings.value("language", "es")))
+        set_language(app_paths.idioma(self.settings))
         
         # Tamaño de arranque por defecto (primer uso): suficiente para que los
         # paneles flotantes no se monten sobre el lienzo. Si hay geometría
@@ -1782,15 +1782,15 @@ if __name__ == "__main__":
 
     app = QApplication(sys.argv)
     # Identidad de la app (misma que QSettings): así rutas estándar como la
-    # carpeta de recuperación quedan en .../MiEstudio/Imago/... y no en .../python/...
-    app.setOrganizationName("AVNSoft")
-    app.setApplicationName("Imago")
+    # carpeta de recuperación quedan en .../AVNSoft/Imago/... y no en .../python/...
+    app.setOrganizationName(app_paths.ORGANIZACION)
+    app.setApplicationName(app_paths.APLICACION)
     app.setDesktopFileName("io.github.anvilnu.imago")
     # Tema: oscuro por defecto. Se elige en Preferencias (clave QSettings "theme")
     # y la variable de entorno IMAGO_THEME lo fuerza (útil para pruebas). use_theme()
     # debe ejecutarse ANTES de construir la ventana (los QSS y el tintado de iconos
     # leen los tokens al montar cada widget). Se lee con app_paths.settings() (el
-    # MISMO almacén que usa Preferencias: QSettings("MiEstudio","Imago") o el .ini
+    # MISMO almacén que usa Preferencias: QSettings("AVNSoft","Imago") o el .ini
     # portable); un QSettings() pelado usaría otra organización y no vería el valor.
     _env_theme = os.environ.get("IMAGO_THEME")
     if _env_theme:
@@ -1811,11 +1811,9 @@ if __name__ == "__main__":
 
     # Cargar las traducciones de Qt en el idioma activo: traduce todos los textos
     # estándar de Qt (botones de QMessageBox, diálogos de color, etc.). El idioma
-    # se lee de QSettings (misma clave que Preferencias / i18n).
-    from PySide6.QtCore import QTranslator, QLibraryInfo, QLocale, QSettings
-    _qt_lang = str(QSettings().value("language", "es"))
-    if _qt_lang not in ("es", "en", "fr"):
-        _qt_lang = "es"
+    # se lee del MISMO almacén que Preferencias / i18n, incluido el INI portable.
+    from PySide6.QtCore import QTranslator, QLibraryInfo, QLocale
+    _qt_lang = app_paths.idioma()
     qt_translator = QTranslator()
     translations_path = QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)
     if qt_translator.load(QLocale(_qt_lang), "qtbase", "_", translations_path):

@@ -478,6 +478,16 @@ diera problemas, el usuario puede forzar el backend a mano con
   de `os.replace()`. Tras Guardar, solo marca limpio el lienzo si su
   `revision_autoguardado` sigue siendo la capturada: una edición posterior a la
   instantánea debe continuar pendiente.
+- **Ajustes pesados y efectos de capa:** `AdjustmentDialog.heavy` confirma a
+  resolución completa mediante `_adjustment_runner`, nunca en el hilo GUI. La
+  instantánea `_ComputeSnapshot` solo contiene valores simples y arrays; un
+  `compute()` pesado no puede leer widgets desde el worker. Al terminar hay que
+  revalidar el `DestinoCapa` antes de aplicar o crear el `PaintCommand`. En el
+  compositor, usa `Layer.render_with_effects_patch()`: la caché conserva solo la
+  caja del contenido y los halos. `render_with_effects()` materializa el lienzo
+  completo para exportar/rasterizar/miniaturas, no para cada rectángulo sucio.
+  Los controles de efectos de capa mantienen el debounce de 140 ms para no
+  invalidar y recomponer por cada evento de un slider.
 - **Herramientas locales y memoria:** Dedo, Licuar, Esponja y Sobre/Subexponer
   nunca deben convertir la capa completa a NumPy al empezar un trazo. Usa
   `ImagenPremultiplicadaDispersa`, `CoberturaDispersa` y los helpers de ROI de

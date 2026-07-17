@@ -2,7 +2,7 @@
 import uuid
 
 from PySide6.QtGui import QImage, QPainter
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QPoint
 
 
 def render_doc_supersampled(doc):
@@ -203,6 +203,7 @@ class Layer:
         self.effects = []
         self._fx_cache = None
         self._fx_cache_key = None
+        self._fx_cache_offset = QPoint(0, 0)
 
     def has_mask(self):
         return self.mask is not None
@@ -210,22 +211,40 @@ class Layer:
     def render_with_effects(self):
         """Imagen de la capa lista para componer CON sus efectos aplicados. Si no
         hay efectos activos, devuelve el render base tal cual (coste cero). El
-        resultado se cachea por capa y solo se recalcula cuando cambia el render
-        base (cacheKey) o algún parámetro de los efectos — nunca por cambios en
-        otras capas ni en cada repintado."""
+        calculo costoso se cachea como un parche regional; esta API materializa
+        el lienzo completo solo para exportar, rasterizar o crear miniaturas."""
+        base = self.render_image()
+        if not any(getattr(e, "activo", False) for e in self.effects):
+            return base
+        patch, posicion = self.render_with_effects_patch()
+        out = QImage(base.size(), QImage.Format_ARGB32_Premultiplied)
+        out.fill(0)
+        if not patch.isNull():
+            p = QPainter(out)
+            p.drawImage(posicion, patch)
+            p.end()
+        return out
+
+    def render_with_effects_patch(self):
+        """Render cacheado como ``(parche, posicion)`` para el compositor.
+
+        El parche abarca la caja real del contenido y los halos de sus efectos,
+        no todos los pixeles transparentes del documento. Su clave sigue siendo
+        la identidad del render base y los parametros de los efectos.
+        """
         base = self.render_image()
         activos = [e for e in self.effects if getattr(e, "activo", False)]
         if not activos:
-            return base
+            return base, QPoint(0, 0)
 
         key = (base.cacheKey(), tuple(e.fingerprint() for e in activos))
         if self._fx_cache is not None and self._fx_cache_key == key:
-            return self._fx_cache
+            return self._fx_cache, QPoint(self._fx_cache_offset)
 
-        from models.layer_effects import render_effects
-        self._fx_cache = render_effects(base, activos)
+        from models.layer_effects import render_effects_patch
+        self._fx_cache, self._fx_cache_offset = render_effects_patch(base, activos)
         self._fx_cache_key = key
-        return self._fx_cache
+        return self._fx_cache, QPoint(self._fx_cache_offset)
 
     def render_sin_mascara(self):
         """Contenido base de la capa, antes de aplicar su mascara."""

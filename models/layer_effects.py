@@ -13,8 +13,9 @@
 # (sombra, resplandor exterior, parte externa del trazo). Los "por dentro"
 # (render_above, futuro) se recortan al alfa de la capa (sombra interior, etc.).
 import math
+import sys
 from PySide6.QtGui import QImage, QPainter, QColor, QLinearGradient
-from PySide6.QtCore import QPoint
+from PySide6.QtCore import QPoint, QRect
 
 
 def _alpha_view(qimage):
@@ -28,6 +29,37 @@ def _alpha_view(qimage):
     bpl = src.bytesPerLine()
     arr = np.frombuffer(src.constBits(), np.uint8).reshape(H, bpl)[:, :W * 4]
     return arr.reshape(H, W, 4).copy(), W, H
+
+
+def _alpha_bbox_qimage(qimage):
+    """Caja del alfa no nulo sin copiar los cuatro canales de todo el lienzo.
+
+    ARGB32 es el formato habitual de las capas. Su orden de bytes depende del
+    endian de la maquina; RGBA8888, en cambio, siempre deja el alfa en el cuarto
+    byte. Los formatos menos comunes se convierten solo como respaldo.
+    """
+    import numpy as np
+
+    W, H = qimage.width(), qimage.height()
+    if W <= 0 or H <= 0:
+        return None
+    fmt = qimage.format()
+    argb = (QImage.Format_ARGB32, QImage.Format_ARGB32_Premultiplied,
+            QImage.Format_RGB32)
+    rgba = (QImage.Format_RGBA8888, QImage.Format_RGBA8888_Premultiplied)
+    if fmt in argb:
+        src = qimage
+        alpha_byte = 3 if sys.byteorder == "little" else 0
+    elif fmt in rgba:
+        src = qimage
+        alpha_byte = 3
+    else:
+        src = qimage.convertToFormat(QImage.Format_RGBA8888)
+        alpha_byte = 3
+    raw = np.frombuffer(src.constBits(), np.uint8).reshape(
+        H, src.bytesPerLine())[:, :W * 4]
+    alpha = raw.reshape(H, W, 4)[:, :, alpha_byte]
+    return _alpha_bbox(alpha)
 
 
 def _alpha_bbox(alpha):
@@ -533,46 +565,88 @@ _Z_ENCIMA = {"degradado": 0, "superposicion": 1, "satinado": 2,
              "sombra_interior": 3, "bisel": 4}
 
 
-def render_effects(base, effects):
-    """Compone el render base de una capa con sus efectos activos y devuelve una
-    nueva QImage del MISMO tamaño (lista para blitear como cualquier capa).
+def render_effects_patch(base, effects):
+    """Compone los efectos en un parche ajustado al contenido y sus halos.
 
-    Orden: primero los efectos "por debajo" (sombra, resplandor, trazo), luego
-    los píxeles de la capa encima, y por último los efectos "por dentro"
-    (recortados al alfa). Dentro de cada grupo se compone según el Z-order
-    canónico de arriba (no según el orden de la lista). Trabaja acotado a la
-    bbox del contenido dentro de cada efecto; aquí solo se ensamblan las
-    contribuciones."""
+    Devuelve ``(imagen, posicion)``. La imagen no ocupa el lienzo completo:
+    contiene la caja de alfa de la capa y las contribuciones que sobresalen
+    (sombra, resplandor y trazo), recortadas a los limites del documento. Esto
+    permite cachear una capa dispersa sin reservar cuatro bytes por cada pixel
+    transparente del lienzo.
+    """
     activos = [e for e in effects if getattr(e, "activo", False)]
     if not activos:
-        return base
+        return base, QPoint(0, 0)
 
-    arr, W, H = _alpha_view(base)
-    out = QImage(W, H, QImage.Format_ARGB32_Premultiplied)
-    out.fill(0)
-    p = QPainter(out)
+    bbox = _alpha_bbox_qimage(base)
+    if bbox is None:
+        return QImage(), QPoint(0, 0)
+    x0, y0, x1, y1 = bbox
+    recorte_base = base.copy(QRect(x0, y0, x1 - x0, y1 - y0))
+    arr, _W, _H = _alpha_view(recorte_base)
 
-    # Efectos POR DEBAJO, del fondo hacia la capa (sombra → resplandor → trazo).
     debajo = [e for e in activos if getattr(e, "render_below", None) is not None]
+    encima = [e for e in activos if getattr(e, "render_above", None) is not None]
+
+    contrib_debajo = []
     for e in sorted(debajo, key=lambda e: _Z_DEBAJO.get(getattr(e, "tipo", None),
                                                         len(_Z_DEBAJO))):
         contrib = e.render_below(arr)
         if contrib is not None:
             qimg, px, py = contrib
-            p.drawImage(QPoint(px, py), qimg)
+            contrib_debajo.append((qimg, x0 + px, y0 + py))
 
-    # Píxeles de la propia capa, encima de los efectos por debajo.
-    p.drawImage(0, 0, base)
-
-    # Efectos POR ENCIMA / recortados al contenido, de la capa hacia arriba
-    # (degradado → superposición → satinado → sombra interior → bisel).
-    encima = [e for e in activos if getattr(e, "render_above", None) is not None]
+    contrib_encima = []
     for e in sorted(encima, key=lambda e: _Z_ENCIMA.get(getattr(e, "tipo", None),
                                                         len(_Z_ENCIMA))):
         contrib = e.render_above(arr)
         if contrib is not None:
             qimg, px, py = contrib
-            p.drawImage(QPoint(px, py), qimg)
+            contrib_encima.append((qimg, x0 + px, y0 + py))
+
+    caja = QRect(x0, y0, x1 - x0, y1 - y0)
+    for qimg, px, py in contrib_debajo + contrib_encima:
+        caja = caja.united(QRect(px, py, qimg.width(), qimg.height()))
+    caja = caja.intersected(QRect(0, 0, base.width(), base.height()))
+    if caja.isEmpty():
+        return QImage(), QPoint(0, 0)
+
+    out = QImage(caja.size(), QImage.Format_ARGB32_Premultiplied)
+    out.fill(0)
+    p = QPainter(out)
+    origen = caja.topLeft()
+
+    # Efectos POR DEBAJO, del fondo hacia la capa (sombra → resplandor → trazo).
+    for qimg, px, py in contrib_debajo:
+        p.drawImage(QPoint(px, py) - origen, qimg)
+
+    # Píxeles de la propia capa, encima de los efectos por debajo.
+    p.drawImage(QPoint(x0, y0) - origen, recorte_base)
+
+    # Efectos POR ENCIMA / recortados al contenido, de la capa hacia arriba
+    # (degradado → superposición → satinado → sombra interior → bisel).
+    for qimg, px, py in contrib_encima:
+        p.drawImage(QPoint(px, py) - origen, qimg)
 
     p.end()
+    return out, caja.topLeft()
+
+
+def render_effects(base, effects):
+    """Compone efectos y devuelve una QImage del mismo tamaño que ``base``.
+
+    Es la API de compatibilidad para exportar, rasterizar y generar miniaturas.
+    El compositor interactivo usa directamente :func:`render_effects_patch`
+    para no materializar un lienzo transparente completo.
+    """
+    activos = [e for e in effects if getattr(e, "activo", False)]
+    if not activos:
+        return base
+    patch, posicion = render_effects_patch(base, activos)
+    out = QImage(base.size(), QImage.Format_ARGB32_Premultiplied)
+    out.fill(0)
+    if not patch.isNull():
+        p = QPainter(out)
+        p.drawImage(posicion, patch)
+        p.end()
     return out

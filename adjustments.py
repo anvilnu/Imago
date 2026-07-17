@@ -11,10 +11,12 @@ implementa qué controles tiene y cómo transforma los píxeles (con numpy).
 
 import math
 import numpy as np
-from PySide6.QtCore import Qt, QTimer, Signal, QPointF, QRectF, QEvent
+from PySide6.QtCore import Qt, QTimer, Signal, QPointF, QRectF, QEvent, QObject
 from PySide6.QtGui import QImage, QPainter, QPen, QColor, QPainterPath
 from PySide6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel, QSlider,
-                               QSpinBox, QPushButton, QWidget)
+                               QSpinBox, QPushButton, QWidget, QComboBox,
+                               QAbstractButton, QAbstractSlider,
+                               QAbstractSpinBox)
 
 from tools.commands import PaintCommand
 from widgets.overlay_panel import OverlayPanel
@@ -48,6 +50,55 @@ def qimage_to_array(qimg):
 def array_to_qimage(arr, W, H):
     arr = np.ascontiguousarray(arr)
     return QImage(arr.data, W, H, 4 * W, QImage.Format_RGBA8888).copy()
+
+
+class _ComputeSnapshot:
+    """Estado inmutable y sin widgets que un ``compute`` puede leer en worker."""
+
+    def __init__(self, values, checks, combos, colors, attrs):
+        self._values = values
+        self._check_values = checks
+        self._combo_values = combos
+        self._color_values = colors
+        for name, value in attrs.items():
+            setattr(self, name, value)
+
+    def val(self, key):
+        return self._values[key]
+
+    def checked(self, key):
+        return self._check_values[key]
+
+    def combo_index(self, key):
+        return self._combo_values[key]
+
+    def color(self, key):
+        return self._color_values[key]
+
+
+_NO_WORKER_VALUE = object()
+
+
+def _worker_safe_value(value):
+    """Copia contenedores de datos simples y rechaza cualquier objeto Qt."""
+    if isinstance(value, QObject):
+        return _NO_WORKER_VALUE
+    if value is None or isinstance(value, (bool, int, float, str, bytes, np.ndarray)):
+        return value
+    if isinstance(value, tuple):
+        items = tuple(_worker_safe_value(item) for item in value)
+        return (_NO_WORKER_VALUE if any(item is _NO_WORKER_VALUE for item in items)
+                else items)
+    if isinstance(value, list):
+        items = [_worker_safe_value(item) for item in value]
+        return (_NO_WORKER_VALUE if any(item is _NO_WORKER_VALUE for item in items)
+                else items)
+    if isinstance(value, dict):
+        items = {key: _worker_safe_value(item) for key, item in value.items()}
+        return (_NO_WORKER_VALUE
+                if any(item is _NO_WORKER_VALUE for item in items.values())
+                else items)
+    return _NO_WORKER_VALUE
 
 
 # ------------------------------------------------------------- diálogo base
@@ -91,6 +142,7 @@ class AdjustmentDialog(OverlayPanel):
         self._cur_scale = 1.0
         self._orig_small = None
         self._scale = 1.0
+        self._final_handle = None
 
         # Debounce de la vista previa para filtros pesados (efectos)
         self._preview_timer = QTimer(self)
@@ -138,16 +190,19 @@ class AdjustmentDialog(OverlayPanel):
 
         root.addSpacing(6)
         btns = QHBoxLayout()
-        reset_btn = QPushButton(t("common.reset"))
-        reset_btn.clicked.connect(self.reset)
-        btns.addWidget(reset_btn)
+        self._final_status = QLabel(t("fx.full.working"))
+        self._final_status.setVisible(False)
+        btns.addWidget(self._final_status)
+        self._reset_btn = QPushButton(t("common.reset"))
+        self._reset_btn.clicked.connect(self.reset)
+        btns.addWidget(self._reset_btn)
         btns.addStretch()
-        ok_btn = QPushButton(t("btn.accept", default="Aceptar"))
-        ok_btn.clicked.connect(self.accept)
-        cancel_btn = QPushButton(t("btn.cancel", default="Cancelar"))
-        cancel_btn.clicked.connect(self.reject)
-        btns.addWidget(ok_btn)
-        btns.addWidget(cancel_btn)
+        self._ok_btn = QPushButton(t("btn.accept", default="Aceptar"))
+        self._ok_btn.clicked.connect(self.accept)
+        self._cancel_btn = QPushButton(t("btn.cancel", default="Cancelar"))
+        self._cancel_btn.clicked.connect(self.reject)
+        btns.addWidget(self._ok_btn)
+        btns.addWidget(self._cancel_btn)
         root.addLayout(btns)
 
         self.setMinimumWidth(380)
@@ -346,6 +401,9 @@ class AdjustmentDialog(OverlayPanel):
             return
         self._valid = False
         self._preview_timer.stop()
+        if self._final_handle is not None:
+            self._final_handle.cancel()
+            self._final_handle = None
         status = getattr(self.main_window, "status_bar", None)
         if status is not None:
             status.showMessage(t("edit.target_changed"), 5000)
@@ -391,9 +449,113 @@ class AdjustmentDialog(OverlayPanel):
         self.canvas.update()
         return True
 
+    def _compute_snapshot(self):
+        """Captura en GUI solo datos Python/NumPy; ningun widget viaja al hilo."""
+        attrs = {}
+        for name, value in self.__dict__.items():
+            if not name.startswith("_"):
+                continue
+            safe = _worker_safe_value(value)
+            if safe is not _NO_WORKER_VALUE:
+                attrs[name] = safe
+        attrs["_cur_scale"] = 1.0
+        return _ComputeSnapshot(
+            {key: slider.value() for key, slider in self._sliders.items()},
+            {key: check.isChecked() for key, check in self._checks.items()},
+            {key: combo.currentIndex() for key, combo in self._combos.items()},
+            {key: (color.red(), color.green(), color.blue())
+             for key, color in self._colors.items()},
+            attrs)
+
+    def _set_final_busy(self, busy):
+        """Bloquea parametros durante el calculo pero conserva Cancelar y la X."""
+        self._final_status.setVisible(bool(busy))
+        interactivos = (QAbstractButton, QAbstractSlider,
+                        QAbstractSpinBox, QComboBox)
+        for widget in self._body.findChildren(QWidget):
+            if isinstance(widget, interactivos):
+                widget.setEnabled(not busy)
+        self._cancel_btn.setEnabled(True)
+        self.title_bar.btn_close.setEnabled(True)
+
+    def _get_compute_runner(self):
+        runner = getattr(self.main_window, "_adjustment_runner", None)
+        if runner is None:
+            from ai.runner import InferenceRunner
+            runner = InferenceRunner(self.main_window, max_threads=1)
+            self.main_window._adjustment_runner = runner
+        return runner
+
+    def _commit_final(self, grad):
+        """Aplica en GUI el QImage ya calculado y crea un unico paso de undo."""
+        index = self._indice_destino(exigir_activo=True)
+        if index is None:
+            self._invalidar_destino()
+            return False
+        result = self.canvas.composite_selection_result(
+            self._full_before, grad, self._patch_offset)
+        self._layer.image = result
+        self._layer_index = index
+        self._destino.actualizar_revision()
+        self.canvas.update()
+        after = QImage(self._layer.image)
+        if after != self._full_before:
+            cmd = PaintCommand(
+                self.canvas, index, self._full_before, after,
+                self.title, tool_id="adjust")
+            hist_icon = getattr(self, "history_icon", None)
+            if hist_icon:
+                cmd.history_icon = hist_icon
+            self.canvas.undo_stack.push(cmd)
+        OverlayPanel.accept(self)
+        return True
+
+    def _accept_in_worker(self):
+        contexto = self._compute_snapshot()
+        origen = self._orig
+        compute = type(self).compute
+        ancho, alto = self._W, self._H
+        self._set_final_busy(True)
+        status = getattr(self.main_window, "status_bar", None)
+        if status is not None:
+            status.showMessage(t("fx.full.working"))
+
+        def work(_report, token):
+            if token.cancelled:
+                return None
+            adjusted = compute(contexto, origen.copy())
+            if token.cancelled:
+                return None
+            return array_to_qimage(adjusted, ancho, alto)
+
+        def done(grad):
+            self._final_handle = None
+            self._set_final_busy(False)
+            if grad is not None:
+                applied = self._commit_final(grad)
+                if applied and status is not None:
+                    status.showMessage(t("fx.full.done"), 3000)
+
+        def error(message):
+            self._final_handle = None
+            self._set_final_busy(False)
+            if status is not None:
+                status.showMessage(t("fx.full.error", err=message), 5000)
+            from widgets.custom_titlebar import imago_warning
+            imago_warning(self.main_window, self.title,
+                          t("fx.full.error", err=message))
+
+        self._final_handle = self._get_compute_runner().submit(
+            work, on_done=done, on_error=error)
+
     def accept(self):
         self._preview_timer.stop()
+        if self._final_handle is not None:
+            return
         if self._valid:
+            if self.heavy:
+                self._accept_in_worker()
+                return
             self._update_preview(full=True)
             index = self._indice_destino(exigir_activo=True)
             if index is None:
@@ -415,6 +577,9 @@ class AdjustmentDialog(OverlayPanel):
 
     def reject(self):
         self._preview_timer.stop()
+        if self._final_handle is not None:
+            self._final_handle.cancel()
+            self._final_handle = None
         self._restore()
         super().reject()
 

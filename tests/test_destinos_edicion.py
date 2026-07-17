@@ -1,11 +1,14 @@
 """Regresiones de identidad para IA y overlays con trabajo diferido."""
 
 import os
+import threading
+import time
 import unittest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import numpy as np
+from PySide6.QtCore import QTimer
 from PySide6.QtGui import QColor, QImage, QPainterPath, QUndoStack
 from PySide6.QtWidgets import QApplication, QWidget
 
@@ -89,6 +92,25 @@ class _AjustePrueba(AdjustmentDialog):
         return out
 
 
+_HILOS_AJUSTE_PESADO = []
+
+
+class _AjustePesadoPrueba(AdjustmentDialog):
+    title = "Ajuste pesado de prueba"
+    heavy = True
+
+    def build_controls(self):
+        self.add_slider_row("cantidad", "Cantidad", 0, 255, 25)
+
+    def compute(self, arr):
+        _HILOS_AJUSTE_PESADO.append(threading.get_ident())
+        time.sleep(0.08)
+        out = arr.copy()
+        out[..., 0] = np.clip(
+            out[..., 0].astype(np.int16) + self.val("cantidad"), 0, 255)
+        return out.astype(np.uint8)
+
+
 class _VentanaIA(AccionesMenuIA):
     def __init__(self, canvases):
         self.tabs = _Tabs(canvases)
@@ -137,6 +159,15 @@ def _layer(color):
 
 
 class DestinosEdicionTests(unittest.TestCase):
+    @staticmethod
+    def _procesar_hasta(predicate, timeout=3.0):
+        limite = time.monotonic() + timeout
+        while not predicate() and time.monotonic() < limite:
+            _APP.processEvents()
+            time.sleep(0.005)
+        _APP.processEvents()
+        return predicate()
+
     def test_destino_capa_sigue_al_objeto_reordenado(self):
         target = _layer("#102030")
         other = _layer("#405060")
@@ -212,6 +243,39 @@ class DestinosEdicionTests(unittest.TestCase):
 
         self.assertEqual(target.image, external)
         self.assertEqual(canvas.undo_stack.count(), 0)
+
+    def test_overlay_pesado_confirma_en_worker_y_mantiene_qt_responsivo(self):
+        _HILOS_AJUSTE_PESADO.clear()
+        target = _layer("#102030")
+        canvas = _Canvas([target])
+        window = _Ventana([canvas])
+        panel = _AjustePesadoPrueba(window)
+        hilo_gui = threading.get_ident()
+        pulso_qt = []
+        QTimer.singleShot(10, lambda: pulso_qt.append(True))
+
+        panel.accept()
+
+        self.assertIsNotNone(panel._final_handle)
+        self.assertTrue(self._procesar_hasta(lambda: canvas.undo_stack.count() == 1))
+        self.assertTrue(pulso_qt)
+        self.assertTrue(any(hilo != hilo_gui for hilo in _HILOS_AJUSTE_PESADO))
+        self.assertEqual(canvas.undo_stack.count(), 1)
+
+    def test_overlay_pesado_descarta_resultado_si_cambia_la_capa(self):
+        target = _layer("#102030")
+        canvas = _Canvas([target])
+        window = _Ventana([canvas])
+        panel = _AjustePesadoPrueba(window)
+        panel.accept()
+        external = QImage(3, 2, QImage.Format_ARGB32)
+        external.fill(QColor("#abcdef"))
+        target.image = external
+
+        self.assertTrue(self._procesar_hasta(lambda: panel._final_handle is None))
+        self.assertEqual(target.image, external)
+        self.assertEqual(canvas.undo_stack.count(), 0)
+        self.assertTrue(window.status_bar.messages)
 
     def test_commit_ia_usa_indice_actual_y_descarta_revision_obsoleta(self):
         target = _layer("#102030")

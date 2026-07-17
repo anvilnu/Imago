@@ -293,12 +293,30 @@ prioridades críticas, porque afectan a la integridad del documento.
   instantánea y cancelación, además de la suite completa de 87 pruebas (3
   POSIX omitidas en Windows).
 
-- [ ] **Medir y presupuestar las previews y efectos de capa.** La preview
+- [x] **Medir y presupuestar las previews y efectos de capa.** La preview
   reducida y el debounce existentes son buenos, pero Aceptar recalcula a
   resolución completa en el hilo GUI y cualquier cambio de píxeles invalida
   la caché completa de efectos de la capa. Medir por efecto y tamaño; mover
   los finales pesados a workers y estudiar cachés por región antes de retomar
   capas de ajuste u opacidad de grupos.
+  Completado el 18-07-2026. Los ajustes marcados `heavy` capturan en GUI una
+  instantánea formada solo por valores Python/NumPy y calculan el resultado
+  final en una cola serial; ningún widget se lee desde el worker y el callback
+  vuelve a validar documento, capa y revisión antes de crear el único paso de
+  deshacer. Los controles quedan bloqueados durante el cálculo, pero Cancelar
+  y la X siguen disponibles. Los efectos de capa agrupan las ráfagas de slider
+  durante 140 ms y su caché ya no es otro lienzo completo: conserva un parche
+  con la caja del alfa y sus halos; exportación/rasterizado materializan el
+  tamaño completo solo cuando lo necesitan.
+  Medición Windows 11: a 1200×800 / 2400×1600, gaussiano 652/859 ms, óleo
+  438/1815 ms y desenfoque radial 1500/5973 ms; esos finales ya no bloquean el
+  bucle Qt. En una capa dispersa de 800×600 dentro de un lienzo 4000×3000 con
+  los ocho efectos, la caché baja de 45,8 a 2,3 MiB y el cálculo de 1034 a
+  869 ms. Una capa completamente opaca sigue siendo el peor caso regional
+  (45,8 MiB y ~7,1 s con los ocho efectos), dato que desaconseja introducir
+  todavía efectos que dependan de otras capas. Cubierto por 7 regresiones
+  nuevas de worker, revalidación, debounce, invalidación y parche regional,
+  además de la suite completa de 94 pruebas (3 POSIX omitidas en Windows).
 
 - [ ] **Reducir copias en el IPC de IA y hacer rápida la cancelación.** Los
   arrays grandes se serializan entre procesos y duplican memoria. Valorar

@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel, QSlider,
                                QSpinBox, QPushButton, QWidget, QStackedWidget,
                                QListWidget, QListWidgetItem)
 from PySide6.QtGui import QColor
-from PySide6.QtCore import Qt, QEvent
+from PySide6.QtCore import Qt, QEvent, QTimer
 import theme
 from widgets.overlay_panel import OverlayPanel
 from adjustments import _panel_qss   # estilo base común de los paneles overlay
@@ -361,6 +361,10 @@ class EfectosDialog(OverlayPanel):
 
         self._valid = bool(self._destino) and self._destino.indice_actual(
             self.main_window, exigir_revision=False, exigir_activo=True) is not None
+        self._preview_timer = QTimer(self)
+        self._preview_timer.setSingleShot(True)
+        self._preview_timer.setInterval(140)
+        self._preview_timer.timeout.connect(self._rebuild_effects)
         if self._valid:
             self._layer_index = self._destino.indice_actual(
                 self.main_window, exigir_revision=False, exigir_activo=True)
@@ -460,7 +464,7 @@ class EfectosDialog(OverlayPanel):
             self._enabled.add(tp)
         else:
             self._enabled.discard(tp)
-        self._rebuild_effects()
+        self._request_rebuild()
 
     def _on_ctrl_change(self, tp):
         """Se tocó un control del efecto 'tp': si no estaba activo, se activa
@@ -472,7 +476,7 @@ class EfectosDialog(OverlayPanel):
             self.list.blockSignals(True)
             self._items_by_type[tp].setCheckState(Qt.Checked)
             self.list.blockSignals(False)
-        self._rebuild_effects()
+        self._request_rebuild()
 
     def _reset_current(self):
         row = self.list.currentRow()
@@ -495,28 +499,41 @@ class EfectosDialog(OverlayPanel):
         if not self._valid:
             return
         self._valid = False
+        self._preview_timer.stop()
         status = getattr(self.main_window, "status_bar", None)
         if status is not None:
             status.showMessage(t("edit.target_changed"), 5000)
         OverlayPanel.reject(self)
 
-    def _rebuild_effects(self):
+    def _sincronizar_effects(self):
         index = self._indice_destino(exigir_activo=True)
         if index is None:
             self._invalidar_destino()
-            return
+            return False
         self._layer.effects = [self._effects_by_type[tp] for tp in _ORDEN
                                if tp in self._enabled]
         for e in self._layer.effects:
             e.activo = True
-        self._layer._fx_cache = None
-        self._layer._fx_cache_key = None
         self._layer_index = index
         self._effects_expected = self._revision_effects(self._layer.effects)
+        return True
+
+    def _request_rebuild(self):
+        """Agrupa la rafaga de eventos de slider antes de recalcular efectos."""
+        if self._sincronizar_effects():
+            self._preview_timer.start()
+
+    def _rebuild_effects(self):
+        self._preview_timer.stop()
+        if not self._sincronizar_effects():
+            return
+        self._layer._fx_cache = None
+        self._layer._fx_cache_key = None
         self.canvas.update()
 
     # ---- ciclo de vida ----
     def accept(self):
+        self._preview_timer.stop()
         if self._valid:
             self._rebuild_effects()
             index = self._indice_destino(exigir_activo=True)
@@ -532,6 +549,7 @@ class EfectosDialog(OverlayPanel):
         super().accept()
 
     def reject(self):
+        self._preview_timer.stop()
         if self._valid:
             index = self._indice_destino(exigir_activo=False)
             revision = self._revision_effects(self._layer.effects)

@@ -1705,10 +1705,16 @@ class Canvas(QWidget):
                                 continue
                             p.setOpacity(layer.opacity / 100.0)
                             p.setCompositionMode(getattr(layer, "blend_mode", QPainter.CompositionMode.CompositionMode_SourceOver))
-                            # ✨ render_with_effects() = render base + efectos de
-                            # capa (sombra...). Sin efectos devuelve el base tal
-                            # cual (coste cero) y cachea por capa, así que llamarlo
-                            # por cada rect sucio es un acierto de caché.
+                            # ✨ El render con efectos se cachea como PARCHE: caja
+                            # del contenido + halos, no como otro lienzo transparente
+                            # completo. Para una capa dispersa evita decenas de MiB y
+                            # solo se cruza aqui con el rectangulo realmente sucio.
+                            render_capa, pos_render = layer.render_with_effects_patch()
+                            rect_render = QRect(pos_render, render_capa.size())
+                            parte = r.intersected(rect_render)
+                            if parte.isEmpty():
+                                continue
+                            origen_parte = parte.translated(-pos_render)
                             if base is not None:
                                 # El recorte se calcula SOLO para el rect sucio
                                 # (buffer temporal de su tamaño, nunca a imagen
@@ -1718,13 +1724,14 @@ class Canvas(QWidget):
                                 tmp = QImage(r.size(), QImage.Format.Format_ARGB32_Premultiplied)
                                 tmp.fill(0)
                                 tp = QPainter(tmp)
-                                tp.drawImage(QPoint(0, 0), layer.render_with_effects(), r)
+                                tp.drawImage(parte.topLeft() - r.topLeft(),
+                                             render_capa, origen_parte)
                                 tp.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationIn)
                                 tp.drawImage(QPoint(0, 0), base.render_image(), r)
                                 tp.end()
                                 p.drawImage(r.topLeft(), tmp)
                             else:
-                                p.drawImage(r, layer.render_with_effects(), r)
+                                p.drawImage(parte, render_capa, origen_parte)
                 p.end()
                 self._cache_valid_region += dirty_region
 

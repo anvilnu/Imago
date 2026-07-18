@@ -7,14 +7,15 @@ from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QImage, QUndoCommand
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QMainWindow
 
 from models.layer import Layer, LayerGroup
 from models.layer_effects import Sombra, SuperposicionColor
 from widgets.canvas import Canvas
-from widgets.document_diagnostics import (DiagnosticoDocumentoWidget,
+from widgets.document_diagnostics import (DiagnosticoDocumentoDialog,
+                                          DiagnosticoDocumentoWidget,
                                           analizar_documento)
 
 
@@ -23,6 +24,15 @@ _APP = QApplication.instance() or QApplication([])
 
 class _MainFalso:
     def __init__(self, canvas):
+        self.canvas = canvas
+
+    def get_current_canvas(self):
+        return self.canvas
+
+
+class _VentanaFalsa(QMainWindow):
+    def __init__(self, canvas):
+        super().__init__()
         self.canvas = canvas
 
     def get_current_canvas(self):
@@ -76,7 +86,7 @@ class DiagnosticoDocumentoTests(unittest.TestCase):
         self.assertEqual(diagnostico.proyecto_bruto_bytes,
                          2 * tamano + 1024 + 2 * 512)
 
-    def test_panel_oculto_no_sondea_y_visible_solo_marca_cambios(self):
+    def test_contenido_oculto_no_sondea_y_visible_solo_marca_cambios(self):
         canvas = Canvas(30, 20)
         panel = DiagnosticoDocumentoWidget(_MainFalso(canvas))
         self.addCleanup(panel.deleteLater)
@@ -102,6 +112,26 @@ class DiagnosticoDocumentoTests(unittest.TestCase):
             self.assertEqual(analizar.call_count, 1)
             self.assertFalse(panel._pendiente)
         panel.hide()
+
+    def test_dialogo_es_una_ventana_independiente_sin_temporizadores(self):
+        principal = _VentanaFalsa(Canvas(40, 30))
+        dialogo = DiagnosticoDocumentoDialog(principal)
+        self.addCleanup(principal.deleteLater)
+
+        principal.show()
+        _APP.processEvents()
+        minimo_antes = principal.minimumSizeHint()
+        dialogo.show()
+        _APP.processEvents()
+
+        self.assertTrue(dialogo.isWindow())
+        self.assertTrue(dialogo.windowFlags() & Qt.WindowType.Dialog)
+        self.assertFalse(dialogo.isModal())
+        self.assertEqual(dialogo.findChildren(QTimer), [])
+        self.assertEqual(dialogo._body.size().width(), 460)
+        self.assertEqual(principal.minimumSizeHint(), minimo_antes)
+        dialogo.close()
+        _APP.processEvents()
 
 
 if __name__ == "__main__":

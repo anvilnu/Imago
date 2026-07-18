@@ -1773,7 +1773,7 @@ _STRINGS = {
 
     # --- Histograma en vivo (overlay + botón de la fila de toggles) ---
     "tooltip.toggle.histogram": {"es": "Mostrar/Ocultar Histograma", "en": "Show/Hide Histogram", "fr": "Afficher/Masquer l'histogramme"},
-    "tooltip.toggle.diagnostics": {"es": "Mostrar/Ocultar Diagnóstico del documento", "en": "Show/Hide Document diagnostics", "fr": "Afficher/Masquer le diagnostic du document"},
+    "tooltip.toggle.diagnostics": {"es": "Abrir Diagnóstico del documento", "en": "Open Document diagnostics", "fr": "Ouvrir le diagnostic du document"},
     "histogram.title":          {"es": "Histograma", "en": "Histogram", "fr": "Histogramme"},
     "histogram.channel":        {"es": "Canal:", "en": "Channel:", "fr": "Canal :"},
     "histogram.lum":            {"es": "Luminosidad", "en": "Luminosity", "fr": "Luminosité"},
@@ -1784,7 +1784,8 @@ _STRINGS = {
     "histogram.tip":            {"es": "Pasa el ratón para leer un nivel; arrastra para medir un rango (clic para quitarlo)", "en": "Hover to read a level; drag to measure a range (click to clear it)", "fr": "Survolez pour lire un niveau ; glissez pour mesurer une plage (clic pour l'enlever)"},
     "histogram.readout":        {"es": "Nivel {nivel} · {pct} %", "en": "Level {nivel} · {pct} %", "fr": "Niveau {nivel} · {pct} %"},
     "histogram.range":          {"es": "Rango {a}–{b} · {pct} %", "en": "Range {a}–{b} · {pct} %", "fr": "Plage {a}–{b} · {pct} %"},
-    "diagnostics.title":        {"es": "Diagnóstico", "en": "Diagnostics", "fr": "Diagnostic"},
+    "diagnostics.window_title": {"es": "Diagnóstico del documento", "en": "Document diagnostics", "fr": "Diagnostic du document"},
+    "menu.view.diagnostics":    {"es": "Diagnóstico del documento...", "en": "Document diagnostics...", "fr": "Diagnostic du document..."},
     "diagnostics.toggle.fallback": {"es": "ⓘ", "en": "ⓘ", "fr": "ⓘ"},
     "diagnostics.not_available": {"es": "—", "en": "—", "fr": "—"},
     "diagnostics.dimensions":   {"es": "Dimensiones", "en": "Dimensions", "fr": "Dimensions"},

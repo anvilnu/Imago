@@ -513,6 +513,32 @@ class AccionesMenuVer:
             self._sync_zoom_slider()
             self._update_fit_button_state()
 
+    def open_document_diagnostics(self):
+        """Abre una única ventana modeless de diagnóstico del documento."""
+        canvas = self.get_current_canvas()
+        if canvas is None:
+            return
+        dialog = getattr(self, "_document_diagnostics_dialog", None)
+        if dialog is not None:
+            dialog.set_canvas(canvas)
+            dialog.actualizar()
+            dialog.show()
+            dialog.raise_()
+            dialog.activateWindow()
+            return
+
+        from widgets.document_diagnostics import DiagnosticoDocumentoDialog
+        dialog = DiagnosticoDocumentoDialog(self)
+        self._document_diagnostics_dialog = dialog
+
+        def limpiar_referencia(_obj=None):
+            self._document_diagnostics_dialog = None
+
+        dialog.destroyed.connect(limpiar_referencia)
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
+
     def update_tab_tooltip(self, index, thumb=None):
         """Actualiza un tooltip reutilizando la caché reducida de su pestaña."""
         if not 0 <= index < self.tabs.count():

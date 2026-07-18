@@ -402,8 +402,10 @@ prioridades críticas, porque afectan a la integridad del documento.
 - [x] **Diagnóstico opcional del documento.** Un panel pequeño con dimensiones,
   capas, memoria estimada, efectos caros y tamaño aproximado del proyecto
   ayudaría a explicar lentitud antes de una operación pesada.
-  Completado el 18-07-2026. Un sexto toggle abre el panel empotrado Diagnóstico,
-  oculto por defecto, persistente y reordenable en la columna derecha. Informa
+  Completado el 18-07-2026. El botón superior y Ver ▸ Diagnóstico del documento
+  abren una ventana modeless independiente, sin ocupar ni aumentar la altura
+  mínima de la columna derecha. Mantiene una única instancia y sigue la pestaña
+  activa. Informa
   de dimensiones/megapíxeles, capas visibles, texto, máscaras, grupos, buffers
   únicos de capas+cachés+historial, tamaño real del último `.imago` (o estimación
   sin comprimir), efectos activos y los de mayor coste. Señala lienzos
@@ -411,9 +413,11 @@ prioridades críticas, porque afectan a la integridad del documento.
   No renderiza, convierte ni comprime imágenes. No tiene `QTimer`: al editar
   visible solo marca «Actualizar •» y oculto no mantiene conexiones. Medición en
   Windows 11 con 200 capas y 1.000 pasos de historial: mediana de 2,323 ms y
-  máximo de 2,411 ms por actualización manual. Cubierto por 3 regresiones de
-  lectura sin píxeles, memoria compartida/tamaño de proyecto y ciclo oculto,
-  además de la suite completa de 104 pruebas (3 POSIX omitidas en Windows).
+  máximo de 2,411 ms por actualización manual. La apertura mantuvo idéntico el
+  tamaño mínimo de MainWindow (1014×860 en el smoke headless). Cubierto por 4
+  regresiones de lectura sin píxeles, memoria compartida/tamaño de proyecto,
+  ciclo oculto e independencia de ventana, además de la suite completa de 105
+  pruebas (3 POSIX omitidas en Windows).
 - [ ] **Gestor de recuperaciones.** En vez de una única pregunta global al
   arrancar, listar cada copia con nombre, fecha, miniatura y ruta original para
   abrirla, descartarla o conservarla individualmente.

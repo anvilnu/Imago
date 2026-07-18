@@ -264,9 +264,9 @@ widgets/
   colors_panel.py       Panel de color (primario/secundario, RGB, hex, muestras).
   histogram_panel.py    Histograma muestreado del documento activo; solo sondea
                         mientras su panel está visible.
-  document_diagnostics.py  Diagnóstico bajo demanda de dimensiones, capas,
-                        memoria, proyecto y efectos caros; SIN temporizador ni
-                        lectura de píxeles.
+  document_diagnostics.py  Ventana modeless de diagnóstico bajo demanda:
+                        dimensiones, capas, memoria, proyecto y efectos caros;
+                        SIN temporizador ni lectura de píxeles.
   ruler_overlay.py      RulerOverlay: reglas (px/cm) con línea de seguimiento.
   effect_controls.py    CenterPicker y AngleDial (controles de los efectos).
 
@@ -389,8 +389,8 @@ coordenadas LOCALES (no `startSystemMove`) → Wayland-safe.
   que mirar).
 
 ### Paneles empotrados en splitters (no flotan)
-Los paneles (Herramientas, Capas, Historial, Color, Histograma y Diagnóstico)
-van **empotrados**
+Los paneles (Herramientas, Capas, Historial, Color e Histograma) van
+**empotrados**
 dentro de la ventana, no flotan. El montaje (en `create_docks()` de
 `ventana/construccion_ui.py`, nombre histórico) es:
 - Cada panel va envuelto por `_panel_with_header(panel, título, header_buttons)`
@@ -405,13 +405,13 @@ dentro de la ventana, no flotan. El montaje (en `create_docks()` de
   rejilla SIEMPRE a 2 columnas); el centro
   (lienzo) es la celda elástica (`setStretchFactor(1, 1)`). Los separadores se
   estilizan con `theme.splitter_qss()` (línea de 1 px, azul al pasar/arrastrar).
-- `self.right_splitter` (QSplitter vertical) = Histograma · Diagnóstico ·
-  Historial · Capas · Color por defecto (Diagnóstico arranca oculto),
+- `self.right_splitter` (QSplitter vertical) = Histograma · Historial · Capas ·
+  Color por defecto,
   **REORDENABLES por el usuario** con los botones ▲/▼ de cada cabecera
   (`_move_right_panel`, que conserva los tamaños con el panel; orden persistido
   en `panels/right_order` y aplicado en `restore_preferences` ANTES del
-  `restoreState`, que repone tamaños por posición). **Color, Histograma y
-  Diagnóstico NO se estiran**: los
+  `restoreState`, que repone tamaños por posición). **Color e Histograma NO se
+  estiran**: los
   stretch factors se aplican POR IDENTIDAD con `_apply_right_stretch_factors()`
   (Capas=1, Historial=1, los demás=0), nunca a mano por índice (el orden puede
   cambiar) ni con `setFixedHeight`. IMPORTANTE: fijar el alto de Color con
@@ -428,16 +428,22 @@ dentro de la ventana, no flotan. El montaje (en `create_docks()` de
   apunta a `history_container` (estable); el panel interno `history_view` se
   **recrea** al cambiar de pestaña — ver el swap en `on_tab_changed`, que lo
   reemplaza DENTRO de su contenedor con `layout().replaceWidget(...)`.
-- Diagnóstico (`DiagnosticoDocumentoWidget`) no lleva sondeo: oculto cuesta cero;
-  al abrir lee solo metadatos, `cacheKey()` y `sizeInBytes()`. Si cambia el
-  historial visible, únicamente marca «Actualizar •» y espera al usuario. No
-  debe renderizar capas, convertir imágenes ni comprimir para calcular cifras.
 - El `RulerOverlay` es hijo de `content_container`; un `eventFilter` re-sincroniza
   las reglas ante cualquier `Resize` de ese contenedor (arrastre de splitter,
   ocultar panel, resize de ventana).
 - Persistencia: visibilidad de los contenedores + `saveState()/restoreState()` de
   ambos splitters en `save_preferences`/`restore_preferences` (claves `panels/*` y
   `splitters/*`).
+
+### Diagnóstico del documento = ventana independiente
+`DiagnosticoDocumentoDialog` es un `FramelessDialog` **modeless** separado de la
+columna derecha. Se abre con el botón de propiedades superior o desde Ver ▸
+Diagnóstico del documento; se conserva una sola instancia y sigue el documento
+activo. Su contenido no lleva sondeo: al abrir lee solo metadatos, `cacheKey()` y
+`sizeInBytes()`. Si cambia el historial visible, únicamente marca «Actualizar •»
+y espera al usuario. No debe volver al `right_splitter` ni renderizar capas,
+convertir imágenes o comprimir para calcular cifras: su ventana independiente
+evita que la suma de alturas mínimas de los paneles agrande MainWindow.
 
 ### Maximizar/restaurar (ventana sin marco)
 **En Windows** se hace a mano (no `showMaximized()`/`showNormal()`, poco fiables

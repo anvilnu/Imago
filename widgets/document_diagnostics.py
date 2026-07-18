@@ -11,7 +11,7 @@ import os
 from dataclasses import dataclass
 from typing import Optional
 
-from PySide6.QtCore import QObject
+from PySide6.QtCore import QObject, Qt
 from PySide6.QtGui import QImage
 from PySide6.QtWidgets import (QFormLayout, QHBoxLayout, QLabel, QPushButton,
                                QVBoxLayout, QWidget)
@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (QFormLayout, QHBoxLayout, QLabel, QPushButton,
 from i18n import t
 from models.document_state import documento_pendiente
 from models.layer import TextLayer, grupos_del_lienzo, visible_efectiva
+from widgets.custom_titlebar import FramelessDialog
 import theme
 
 
@@ -176,7 +177,7 @@ def formatear_bytes(cantidad):
 
 
 class DiagnosticoDocumentoWidget(QWidget):
-    """Panel empotrado: se calcula al abrir y después solo bajo demanda."""
+    """Contenido del diagnóstico: calcula al mostrarse y luego bajo demanda."""
 
     def __init__(self, main_window, parent=None):
         super().__init__(parent)
@@ -327,3 +328,24 @@ class DiagnosticoDocumentoWidget(QWidget):
         self._aviso.setText(
             t("diagnostics.factors", factors=" · ".join(factores))
             if factores else t("diagnostics.factors.none"))
+
+
+class DiagnosticoDocumentoDialog(FramelessDialog):
+    """Ventana modeless independiente; no altera el tamaño de MainWindow."""
+
+    def __init__(self, main_window):
+        super().__init__(main_window)
+        self.setWindowTitle(t("diagnostics.window_title"))
+        self.setModal(False)
+        self.setWindowModality(Qt.WindowModality.NonModal)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
+        self._body.setFixedSize(460, 310)
+
+        self._diagnostico = DiagnosticoDocumentoWidget(main_window, self._body)
+        self.body_layout.addWidget(self._diagnostico)
+
+    def set_canvas(self, canvas):
+        self._diagnostico.set_canvas(canvas)
+
+    def actualizar(self):
+        self._diagnostico.actualizar()

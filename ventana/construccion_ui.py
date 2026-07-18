@@ -106,20 +106,20 @@ class ConstruccionUI:
         self.btn_toggle_histogram.setToolTip(t("tooltip.toggle.histogram", default="Mostrar/Ocultar Histograma"))
         layout.addWidget(self.btn_toggle_histogram)
 
-        # 6. Diagnóstico: cerrado por defecto y sin trabajo en segundo plano.
-        self.btn_toggle_diagnostics = QToolButton()
-        self.btn_toggle_diagnostics.setCheckable(True)
-        self.btn_toggle_diagnostics.setChecked(False)
-        self.btn_toggle_diagnostics.setStyleSheet(panel_btn_style)
+        # 6. Diagnóstico: abre una ventana independiente; no ocupa el splitter.
+        self.btn_document_diagnostics = QToolButton()
+        self.btn_document_diagnostics.setStyleSheet(theme.toolbutton_flat_qss())
         if QFile.exists(":/icons/layer_properties.png"):
-            self.btn_toggle_diagnostics.setIcon(
+            self.btn_document_diagnostics.setIcon(
                 crear_icono(":/icons/layer_properties.png"))
         else:
-            self.btn_toggle_diagnostics.setText(
+            self.btn_document_diagnostics.setText(
                 t("diagnostics.toggle.fallback"))
-        self.btn_toggle_diagnostics.setToolTip(
+        self.btn_document_diagnostics.setToolTip(
             t("tooltip.toggle.diagnostics"))
-        layout.addWidget(self.btn_toggle_diagnostics)
+        self.btn_document_diagnostics.clicked.connect(
+            self.open_document_diagnostics)
+        layout.addWidget(self.btn_document_diagnostics)
 
         # El contenedor de botones va a la derecha; el hueco libre lo ocupa la tira de miniaturas.
         row_layout.addWidget(container)
@@ -204,8 +204,7 @@ class ConstruccionUI:
         any_visible = (self.btn_toggle_layers.isChecked() or
                        self.btn_toggle_history.isChecked() or
                        self.btn_toggle_colors.isChecked() or
-                       self.btn_toggle_histogram.isChecked() or
-                       self.btn_toggle_diagnostics.isChecked())
+                       self.btn_toggle_histogram.isChecked())
         self.right_splitter.setVisible(any_visible)
         self._update_histogram_height_lock()
 
@@ -224,8 +223,7 @@ class ConstruccionUI:
         solo = (self.btn_toggle_histogram.isChecked()
                 and not (self.btn_toggle_layers.isChecked()
                          or self.btn_toggle_history.isChecked()
-                         or self.btn_toggle_colors.isChecked()
-                         or self.btn_toggle_diagnostics.isChecked()))
+                         or self.btn_toggle_colors.isChecked()))
         if solo:
             container.setMinimumHeight(ALTO_HISTOGRAMA)
             container.setMaximumHeight(16777215)   # QWIDGETSIZE_MAX
@@ -235,19 +233,18 @@ class ConstruccionUI:
     def _apply_right_stretch_factors(self):
         """Reaplica los factores de estiramiento de la columna derecha POR
         IDENTIDAD (los setStretchFactor van por índice y el usuario puede
-        reordenar los paneles con ▲/▼): Capas e Historial elásticos; Color,
-        Histograma y Diagnóstico mantienen su alto natural sin estirarse (por
+        reordenar los paneles con ▲/▼): Capas e Historial elásticos; Color e
+        Histograma mantienen su alto natural sin estirarse (siempre por
         stretch, nunca setFixedHeight: ver el comentario de create_docks)."""
         fijos = (self.colors_container,
-                 getattr(self, "histogram_container", None),
-                 getattr(self, "diagnostics_container", None))
+                 getattr(self, "histogram_container", None))
         for i in range(self.right_splitter.count()):
             w = self.right_splitter.widget(i)
             self.right_splitter.setStretchFactor(i, 0 if w in fijos else 1)
 
     def _move_right_panel(self, clave, delta):
         """Mueve un panel de la columna derecha ('layers'/'history'/'colors'/
-        'histogram'/'diagnostics') una posición arriba o abajo, conservando el
+        'histogram') una posición arriba o abajo, conservando el
         alto de cada panel (los tamaños viajan con su panel, no con la posición)."""
         container = getattr(self, f"{clave}_container", None)
         if container is None:
@@ -271,7 +268,6 @@ class ConstruccionUI:
             elif w is self.history_container: orden.append("history")
             elif w is self.colors_container: orden.append("colors")
             elif w is getattr(self, "histogram_container", None): orden.append("histogram")
-            elif w is getattr(self, "diagnostics_container", None): orden.append("diagnostics")
         return orden
 
     def _update_tools_color_selector_visibility(self):
@@ -378,21 +374,6 @@ class ConstruccionUI:
         self.btn_toggle_histogram.toggled.connect(self.histogram_container.setVisible)
         self._update_histogram_height_lock()
 
-        # Diagnóstico del documento: panel bajo demanda, CERRADO por defecto.
-        # No tiene QTimer; al abrir solo recorre capas/historial y lee tamaños de
-        # buffers ya existentes, sin renderizar ni comprimir el documento.
-        from widgets.document_diagnostics import DiagnosticoDocumentoWidget
-        self.diagnostics_view = DiagnosticoDocumentoWidget(self)
-        self.diagnostics_view.setMinimumHeight(205)
-        self.diagnostics_container = self._panel_with_header(
-            self.diagnostics_view, t("diagnostics.title"),
-            header_buttons=_botones_mover("diagnostics"))
-        self.right_splitter.insertWidget(1, self.diagnostics_container)
-        self.btn_toggle_diagnostics.toggled.connect(
-            self.diagnostics_container.setVisible)
-        self.diagnostics_container.setVisible(
-            self.btn_toggle_diagnostics.isChecked())
-
         # Selector de color compacto al pie del panel de Herramientas: repite los
         # cuadros primario/secundario + intercambiar + restablecer del panel de
         # Color y delega en él. Se ve siempre que el panel de Color esté CERRADO,
@@ -409,8 +390,7 @@ class ConstruccionUI:
         # right_splitter) se oculta para que el lienzo recupere ese espacio; al
         # volver a mostrar cualquiera, reaparece.
         for _btn in (self.btn_toggle_layers, self.btn_toggle_history,
-                     self.btn_toggle_colors, self.btn_toggle_histogram,
-                     self.btn_toggle_diagnostics):
+                     self.btn_toggle_colors, self.btn_toggle_histogram):
             _btn.toggled.connect(lambda _checked: self._update_right_column_visibility())
 
         # La columna derecha es la tercera celda del splitter raíz.
@@ -832,6 +812,15 @@ class ConstruccionUI:
             self.preview_anim_action.setIcon(crear_icono(":/icons/preview_anim.png"))
         self.preview_anim_action.triggered.connect(self.preview_animation)
         view_menu.addAction(self.preview_anim_action)
+
+        self.document_diagnostics_action = QAction(
+            t("menu.view.diagnostics"), self)
+        if QFile.exists(":/icons/layer_properties.png"):
+            self.document_diagnostics_action.setIcon(
+                crear_icono(":/icons/layer_properties.png"))
+        self.document_diagnostics_action.triggered.connect(
+            self.open_document_diagnostics)
+        view_menu.addAction(self.document_diagnostics_action)
 
         view_menu.addSeparator()
 

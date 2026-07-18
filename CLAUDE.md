@@ -1,5 +1,10 @@
 # Imago — guía para Claude Code
 
+Este archivo contiene las instrucciones persistentes del repositorio para
+Claude Code y debe leerse antes de analizar, modificar, validar o documentar
+código del proyecto. Es la copia sincronizada de `AGENTS.md` (misma
+información): si actualizas uno, actualiza el otro.
+
 Imago es un **editor de imágenes de escritorio estilo Paint.NET**, escrito en
 **Python + PySide6 (Qt 6)**, con capas, selección, deshacer/rehacer, herramientas
 de dibujo, IA local y un tema oscuro propio. Pensado principalmente para
@@ -7,15 +12,65 @@ de dibujo, IA local y un tema oscuro propio. Pensado principalmente para
 **Windows** (donde nació el proyecto): los branches por plataforma de
 maximizar/restaurar deben seguir funcionando en ambos.
 
+## Alcance y prioridad de estas instrucciones
+
+- Estas reglas se aplican a todo el repositorio, salvo que un `AGENTS.md` o
+  `CLAUDE.md` situado en una subcarpeta defina instrucciones más específicas
+  para esa parte.
+- Las instrucciones explícitas de la tarea actual tienen prioridad sobre este
+  documento, excepto cuando contradigan requisitos de seguridad, integridad de
+  datos o compatibilidad indicados aquí.
+- Antes de editar, inspecciona los archivos relacionados y sigue los patrones ya
+  existentes. No presupongas la arquitectura a partir del nombre de un archivo.
+- No conviertas una tarea concreta en una refactorización general. Conserva las
+  APIs, el comportamiento y la estructura que no formen parte del encargo.
+
+## Filosofía del proyecto
+
+Imago busca ofrecer una experiencia de edición rápida, estable y coherente, con
+funciones avanzadas e IA local sin obligar al usuario a enviar imágenes a la
+nube. Prioriza, en este orden: integridad de los documentos del usuario,
+estabilidad, compatibilidad Windows/Linux, rendimiento, coherencia de interfaz y
+mantenibilidad. Una solución pequeña integrada en la arquitectura existente es
+preferible a otra más vistosa que duplique sistemas o introduzca deuda técnica.
+
+## Compatibilidad obligatoria Windows/Linux
+
+**Toda corrección, mejora y función nueva debe diseñarse para funcionar tanto en
+Windows como en Linux**, aunque la sesión de desarrollo actual se ejecute solo
+en uno de ellos. Linux (KDE/Wayland nativo) es la plataforma principal de Imago;
+Windows sigue siendo una plataforma soportada de primera clase. No se da una
+tarea por terminada si resuelve un sistema rompiendo o ignorando el otro.
+
+- Usa APIs multiplataforma de Python/Qt siempre que sea posible. Si hace falta
+  una rama específica, aíslala mediante una detección explícita de plataforma,
+  conserva un camino funcional para la otra y explica el motivo en el código.
+- No presupongas separadores, letras de unidad, mayúsculas del sistema de
+  archivos, permisos POSIX, disponibilidad de enlaces simbólicos ni semántica
+  de archivos abiertos de Windows. Construye rutas con `os.path`/`pathlib` y
+  trata bloqueos, permisos y errores de E/S sin pérdida de datos.
+- En escrituras atómicas, el temporal debe estar en el mismo sistema de archivos;
+  en POSIX hay que respetar `umask`, conservar los permisos del destino cuando
+  exista y no romper enlaces simbólicos. En Windows, cerrar todos los objetos Qt
+  y descriptores antes de reemplazar, porque un archivo abierto no se sustituye.
+- La UI no debe depender de X11/XWayland: mantener Wayland nativo, overlays hijo
+  y coordenadas locales. No alteres las ramas Windows/Linux de ventana sin
+  validar conceptualmente ambos comportamientos.
+- Añade pruebas comunes y, cuando proceda, pruebas condicionales por plataforma.
+  Ejecuta las disponibles en el sistema actual y deja claro en la entrega qué
+  plataforma se probó físicamente y cuál quedó cubierta por diseño/pruebas para
+  su siguiente ejecución en CI o en una máquina real. Nunca afirmes que una
+  plataforma fue probada si no lo fue.
+
 ## Idioma (importante)
 
 **Todo el proyecto está en español**: nombres de la interfaz, textos, comentarios,
 docstrings y mensajes. Mantén el español en cualquier código, comentario o texto
 que generes. Responde y razona en español.
 
-La interfaz está **traducida ES/EN** vía `i18n.py`: TODO texto visible al usuario
+La interfaz está **traducida ES/EN/FR** vía `i18n.py`: TODO texto visible al usuario
 debe pasar por `t("clave", default="Texto en español")`, añadiendo la clave con
-sus dos idiomas al diccionario de `i18n.py`. En los combos, el dato va en
+sus tres idiomas al diccionario de `i18n.py`. En los combos, el dato va en
 `itemData` y el texto visible sale de `t()` (no acoples lógica al texto).
 
 ## Stack y ejecución
@@ -33,8 +88,10 @@ sus dos idiomas al diccionario de `i18n.py`. En los combos, el dato va en
   `QT_QPA_PLATFORM=xcb` (por defecto ya no se usa ese backend).
 - Los errores no capturados se registran en `imago_crash.log` (hook al
   principio de `main.py`), útil para diagnosticar cierres inesperados.
-- No hay tests automatizados. Para validar un cambio: comprueba que compila
-  (`python -m py_compile <archivo>`) y prueba la app a mano.
+- Hay pruebas de regresión headless en `tests/`. Para validar un cambio:
+  comprueba que compila (`python -m py_compile <archivo>`), ejecuta
+  `python -m unittest discover -v tests` y prueba manualmente la app cuando el
+  cambio afecte a interacción o integración gráfica no cubierta por la suite.
 
 ## Estructura del proyecto
 
@@ -83,7 +140,7 @@ utilidades.py           crear_icono / crear_icono_checkable /
                         para que los mixins las importen sin ciclos con main.
 theme.py                ÚNICA FUENTE DE VERDAD del estilo (tokens de color +
                         funciones que devuelven QSS por tipo de control).
-i18n.py                 Traducciones ES/EN: diccionario de claves + t("clave",
+i18n.py                 Traducciones ES/EN/FR: diccionario de claves + t("clave",
                         default=...). TODO texto visible pasa por t().
 adjustments.py          Diálogos de Ajustes y Efectos (heredan de
                         AdjustmentDialog, que es un OverlayPanel: panel overlay
@@ -114,6 +171,17 @@ exif_utils.py           Conserva los metadatos EXIF (fecha, cámara, GPS,
                         re-serializa con Pillow (su TIFF lo rechaza exiv2/KDE y
                         pierde la miniatura); Pillow sólo LEE el bloque original.
                         El lienzo lleva canvas.source_exif del abrir.
+atomic_io.py            Guardado ATÓMICO compartido: escribe en un temporal
+                        de la misma carpeta, cierra/sincroniza y publica con
+                        os.replace(); si algo falla conserva el destino
+                        anterior. En POSIX respeta umask/permisos y no rompe
+                        symlinks. Lo usan .imago, imágenes+EXIF, ORA, PDF,
+                        GIF/WebP, lotes y session.json.
+app_paths.py            Identidad ÚNICA AVNSoft/Imago para QSettings y
+                        QStandardPaths: settings() (migra una sola vez desde
+                        MiEstudio/Imago), idioma() y rutas de datos; el modo
+                        portable queda aislado en datos/Imago.ini sin tocar
+                        el registro. Nunca uses un QSettings() pelado.
 
 models/                 (código, no confundir con los modelos ONNX de IA)
   layer.py              Layer (imagen + máscara no destructiva + blend + opacidad),
@@ -128,6 +196,15 @@ models/                 (código, no confundir con los modelos ONNX de IA)
   autosave.py           AutoSaveManager: copia de recuperación (.imago) cada
                         3 min de las pestañas con cambios; en un cierre limpio se
                         borra, y si queda, al arrancar se ofrece recuperarla.
+  document_state.py     Condición central «documento pendiente» y
+                        ResultadoGuardado (éxito/cancelación/error): la
+                        consumen los cierres seguros de pestaña y de Imago.
+  destino_edicion.py    DestinoCapa/DestinoDocumento: identidad estable (uid
+                        de capa + revisión del documento) que IA y overlays
+                        capturan antes de operar y revalidan al aplicar.
+  anim_io.py            capas_de_animacion() + frames_de_capas(): única
+                        selección y render de fotogramas para la
+                        precomprobación, la preview y la exportación.
 
 tools/                  Una clase por herramienta (tool_id, mouse_press/move/
                         release). Muchas heredan de PenTool/BaseTool.
@@ -140,6 +217,8 @@ tools/                  Una clase por herramienta (tool_id, mouse_press/move/
   numpy_utils.py        Utilidades numpy compartidas: kernels de pincel, flood
                         fill por tolerancia, path_from_mask (máscara booleana ->
                         QPainterPath de selección, con fusión de rectángulos).
+  roi_buffers.py        Coberturas e imagen premultiplicada `float32` dispersas
+                        por teselas, más lectura/escritura y selección por ROI.
   draw_tools.py         PenTool, EraserTool, PencilTool, ReplaceColorTool.
   bucket_tool.py        BucketTool (relleno).
   eyedropper_tool.py    EyedropperTool (cuentagotas).
@@ -192,7 +271,8 @@ widgets/
   opciones_seleccion.py PanelesSeleccion: mover (con refinar), marquesinas,
                         mover selección/copia, mano, recorte y varita.
   tab_thumbnails.py     TabThumbnailBar (+_ThumbButton/_ThumbStrip): barra de
-                        miniaturas de pestañas, extraída de main.py.
+                        miniaturas de pestañas, dirigida por la huella visual
+                        del canvas y con caché reducida compartida con tooltips.
   canvas_scroll.py      CanvasScrollArea + CanvasFrameOverlay (scroll del
                         lienzo con marco/sombra y clic de fondo que
                         deselecciona), extraídas de main.py.
@@ -204,6 +284,11 @@ widgets/
   layers_panel.py       Panel de capas (incluye LayerPropertiesDialog).
   history_panel.py      Panel de historial (deshacer/rehacer).
   colors_panel.py       Panel de color (primario/secundario, RGB, hex, muestras).
+  histogram_panel.py    Histograma muestreado del documento activo; solo sondea
+                        mientras su panel está visible.
+  document_diagnostics.py  Ventana modeless de diagnóstico bajo demanda:
+                        dimensiones, capas, memoria, proyecto y efectos caros;
+                        SIN temporizador ni lectura de píxeles.
   ruler_overlay.py      RulerOverlay: reglas (px/cm) con línea de seguimiento.
   effect_controls.py    CenterPicker y AngleDial (controles de los efectos).
 
@@ -212,6 +297,9 @@ ai/                     Menú IA: modelos ONNX LOCALES (CPU) + OpenCV clásico.
                         arranca aunque no estén instalados.
   runner.py             InferenceRunner (QThreadPool): inferencia y descargas
                         FUERA del hilo GUI; callbacks siempre en el hilo GUI.
+  ipc_arrays.py         Transporte de arrays grandes por `.npy` mapeados entre
+                        el proceso principal y el worker aislado (sin pickle
+                        proporcional a la imagen; limpieza por tarea).
   model_manager.py      Catálogo de modelos (url + sha256), descarga con
                         verificación y diálogo de gestión. Los .onnx se guardan
                         en la carpeta de datos del usuario (AppDataLocation).
@@ -236,6 +324,10 @@ generar_recursos.py     Regenera recursos.qrc + recursos_rc.py desde icons/.
                         EJECÚTALO cada vez que añadas/quites/cambies un icono:
                         `python generar_recursos.py`.
 imago_crash.log         Registro de excepciones no capturadas (hook de main.py).
+tests/                  Pruebas de regresión headless (unittest):
+                        `python -m unittest discover -v tests`. Cada arreglo
+                        con riesgo deja aquí su regresión (las POSIX se
+                        omiten automáticamente en Windows).
 ```
 
 ## Convenciones críticas (respétalas siempre)
@@ -323,7 +415,8 @@ coordenadas LOCALES (no `startSystemMove`) → Wayland-safe.
   que mirar).
 
 ### Paneles empotrados en splitters (no flotan)
-Los cuatro paneles (Herramientas, Capas, Historial, Color) van **empotrados**
+Los paneles (Herramientas, Capas, Historial, Color e Histograma) van
+**empotrados**
 dentro de la ventana, no flotan. El montaje (en `create_docks()` de
 `ventana/construccion_ui.py`, nombre histórico) es:
 - Cada panel va envuelto por `_panel_with_header(panel, título, header_buttons)`
@@ -338,22 +431,25 @@ dentro de la ventana, no flotan. El montaje (en `create_docks()` de
   rejilla SIEMPRE a 2 columnas); el centro
   (lienzo) es la celda elástica (`setStretchFactor(1, 1)`). Los separadores se
   estilizan con `theme.splitter_qss()` (línea de 1 px, azul al pasar/arrastrar).
-- `self.right_splitter` (QSplitter vertical) = Capas · Historial · Color por
-  defecto, **REORDENABLES por el usuario** con los botones ▲/▼ de cada cabecera
+- `self.right_splitter` (QSplitter vertical) = Histograma · Historial · Capas ·
+  Color por defecto,
+  **REORDENABLES por el usuario** con los botones ▲/▼ de cada cabecera
   (`_move_right_panel`, que conserva los tamaños con el panel; orden persistido
   en `panels/right_order` y aplicado en `restore_preferences` ANTES del
-  `restoreState`, que repone tamaños por posición). **Color NO se estira**: los
+  `restoreState`, que repone tamaños por posición). **Color e Histograma NO se
+  estiran**: los
   stretch factors se aplican POR IDENTIDAD con `_apply_right_stretch_factors()`
-  (Capas=1, Historial=1, Color=0), nunca a mano por índice (el orden puede
+  (Capas=1, Historial=1, los demás=0), nunca a mano por índice (el orden puede
   cambiar) ni con `setFixedHeight`. IMPORTANTE: fijar el alto de Color con
   `setFixedHeight` le pone un `maximumHeight` que, cuando Color queda como
   único hijo visible (Capas e Historial ocultos), lo hereda el `right_splitter` y
   con él el `root_splitter`, descuadrando toda la interfaz (se iba hacia abajo).
   Con stretch factors Capas e Historial absorben el espacio y Color mantiene su
   alto sin imponer ningún máximo.
-- `_update_right_column_visibility()` oculta el `right_splitter` entero cuando sus
-  tres paneles están ocultos (el lienzo recupera el espacio) y lo reaparece si se
-  abre alguno. Conectado a los tres toggles y sincronizado en `restore_preferences`.
+- `_update_right_column_visibility()` oculta el `right_splitter` entero cuando
+  todos sus paneles están ocultos (el lienzo recupera el espacio) y lo reaparece
+  si se abre alguno. Conectado a todos los toggles y sincronizado en
+  `restore_preferences`.
 - Los botones `btn_toggle_*` hacen `container.setVisible(...)`. El de Historial
   apunta a `history_container` (estable); el panel interno `history_view` se
   **recrea** al cambiar de pestaña — ver el swap en `on_tab_changed`, que lo
@@ -364,6 +460,18 @@ dentro de la ventana, no flotan. El montaje (en `create_docks()` de
 - Persistencia: visibilidad de los contenedores + `saveState()/restoreState()` de
   ambos splitters en `save_preferences`/`restore_preferences` (claves `panels/*` y
   `splitters/*`).
+
+### Diagnóstico del documento = ventana independiente
+`DiagnosticoDocumentoDialog` es un `FramelessDialog` **modeless** separado de la
+columna derecha. Se abre con el botón de propiedades superior o desde Ver ▸
+Diagnóstico del documento; se conserva una sola instancia y sigue el documento
+activo. Su contenido no lleva sondeo: al abrir lee solo metadatos, `cacheKey()` y
+`sizeInBytes()`. Si cambia el historial visible, únicamente marca «Actualizar •»
+y espera al usuario. No debe volver al `right_splitter` ni renderizar capas,
+convertir imágenes o comprimir para calcular cifras: su ventana independiente
+evita que la suma de alturas mínimas de los paneles agrande MainWindow. Conserva
+el ancho de 460 px, pero su alto se recalcula desde el contenido: no debe dejar
+espacio vacío bajo Actualizar y debe crecer si la información ocupa más líneas.
 
 ### Maximizar/restaurar (ventana sin marco)
 **En Windows** se hace a mano (no `showMaximized()`/`showNormal()`, poco fiables
@@ -387,6 +495,12 @@ diera problemas, el usuario puede forzar el backend a mano con
 
 ## Patrones de arquitectura (para añadir cosas de forma coherente)
 
+- **Rendimiento como criterio de aceptación:** toda mejora debe evitar trabajo
+  continuo proporcional al número de capas, píxeles o documentos durante la
+  interacción. Prefiere señales/eventos y cachés invalidadas frente a sondeos;
+  desplaza CPU, compresión y E/S pesada fuera del hilo GUI. Añade una regresión
+  o una medición proporcionada al riesgo y no cierres el punto si introduce
+  pausas o ralentizaciones apreciables en el uso normal.
 - **Añadir/ajustar una herramienta:** crea/edita su clase en `tools/`
   (con `tool_id` y `mouse_press/move/release`), instánciala en `set_tool()` de
   `main.py`, y guarda sus parámetros como **atributos del canvas**
@@ -399,18 +513,63 @@ diera problemas, el usuario puede forzar el backend a mano con
   los demás (ejemplo: la tolerancia del borrador solo aparece en los modos
   "color" y "fondos", no en el normal). Sincroniza el estado al cambiar de
   herramienta y de pestaña.
+- **Ajustes, rutas e idioma:** la identidad normal única es `AVNSoft/Imago` para
+  `QSettings` y `QStandardPaths`; usa siempre `app_paths.settings()` y
+  `app_paths.idioma()`, nunca un `QSettings()` pelado. En modo portable deben
+  permanecer aislados en `datos/Imago.ini`, sin leer el registro. La migración
+  desde el antiguo `MiEstudio/Imago` es conservadora y no borra el origen.
+- **Miniaturas de documentos:** no restaures un sondeo periódico. `Canvas`
+  compara `_huella_visual()` y emite `contenido_visual_cambiado`; la barra
+  agrupa las ráfagas con un `QTimer` de disparo único y conserva una vista previa
+  reducida por lienzo, compartida con su tooltip. Tras regenerarla llama a
+  `confirmar_miniatura_actualizada()`. Cualquier propiedad nueva que altere el
+  compuesto debe formar parte de `_huella_visual()`.
+- **E/S pesada de documentos:** no comprimas ni decodifiques imágenes, ZIP,
+  Pillow o PDF en el hilo GUI. Captura primero una instantánea coherente con
+  `crear_instantanea_proyecto()`/`crear_instantanea_ora()` o un `QImage`
+  desligado y ejecuta el trabajo mediante `_ejecutar_trabajo_io()`. El
+  autoguardado comparte `main._io_runner`, cuya cola serial evita operaciones
+  pesadas simultáneas. El worker no debe leer widgets ni `QSettings`; captura
+  antes esos valores simples. Comprueba el token entre capas/fotogramas y antes
+  de `os.replace()`. Tras Guardar, solo marca limpio el lienzo si su
+  `revision_autoguardado` sigue siendo la capturada: una edición posterior a la
+  instantánea debe continuar pendiente.
+- **Ajustes pesados y efectos de capa:** `AdjustmentDialog.heavy` confirma a
+  resolución completa mediante `_adjustment_runner`, nunca en el hilo GUI. La
+  instantánea `_ComputeSnapshot` solo contiene valores simples y arrays; un
+  `compute()` pesado no puede leer widgets desde el worker. Al terminar hay que
+  revalidar el `DestinoCapa` antes de aplicar o crear el `PaintCommand`. En el
+  compositor, usa `Layer.render_with_effects_patch()`: la caché conserva solo la
+  caja del contenido y los halos. `render_with_effects()` materializa el lienzo
+  completo para exportar/rasterizar/miniaturas, no para cada rectángulo sucio.
+  Los controles de efectos de capa mantienen el debounce de 140 ms para no
+  invalidar y recomponer por cada evento de un slider.
+- **Herramientas locales y memoria:** Dedo, Licuar, Esponja y Sobre/Subexponer
+  nunca deben convertir la capa completa a NumPy al empezar un trazo. Usa
+  `ImagenPremultiplicadaDispersa`, `CoberturaDispersa` y los helpers de ROI de
+  `tools/roi_buffers.py`; Pincel, Aerógrafo, Clonado y Sustituir color también
+  acumulan su cobertura con esa clase. Las teselas se crean solo al tocarlas y
+  deben liberarse al terminar. Conserva siempre selección, bloqueo alfa,
+  precisión premultiplicada durante el trazo, preview y un único paso de undo.
 - **Deshacer/rehacer:** `QUndoStack` en el canvas; los comandos de píxeles viven
   en `tools/commands.py` y los de capas/imagen completa en
   `models/layer_commands.py`. Las acciones de menú se habilitan/deshabilitan por
   contexto (`update_edit_actions_state`, `update_layer_menu_state`, conectadas a
   cambios de selección/portapapeles/pila y al `aboutToShow` de los menús).
   Dos INVARIANTES a respetar: (1) `PaintCommand` guarda solo el PARCHE del
-  rectángulo modificado — pásale siempre el antes/después de la capa COMPLETA y
-  él recorta; (2) su undo/redo REEMPLAZA el objeto `layer.image` (nunca pintar
+  rectángulo modificado — pásale siempre el antes/después de la capa COMPLETA y,
+  si la operación conoce una caja conservadora, `dirty_rect=QRect(...)` o
+  `(x0, y0, x1, y1)` semiabierto; él la recorta y afina el parche exacto. No
+  hagas antes `after != before`, porque volvería a recorrer toda la imagen; los
+  comandos vacíos se marcan obsoletos y `QUndoStack` los descarta. (2) Su
+  undo/redo REEMPLAZA el objeto `layer.image` (nunca pintar
   in place), porque `MoveTool` detecta cambios externos por identidad del QImage.
   El límite de pasos es configurable (Preferencias → Historial, clave QSettings
   `undo_limit`, 0 = sin límite) y se aplica al CREAR cada lienzo (Qt solo
-  permite fijarlo con la pila vacía).
+  permite fijarlo con la pila vacía). El autoguardado NO identifica estados por
+  `undo_stack.index()`: `canvas.revision_autoguardado` es monotónica y avanza
+  con cada señal `indexChanged`, incluidas deshacer/rehacer y ramas nuevas; la
+  última revisión solo se confirma después de escribir correctamente la copia.
 - **Capas:** `canvas.layers` (lista) y `canvas.active_layer_index`;
   `widgets/layers_panel.py` las refleja y controla.
 - **Grupos de capas (carpetas):** SOLO organización, a propósito (nada de
@@ -430,6 +589,10 @@ diera problemas, el usuario puede forzar el backend a mano con
   dato `("layer", idx)` / `("group", grupo)` en el UserRole: NO se puede
   deducir la capa de la posición de la fila (hay cabeceras y plegado). El
   plegado (`group.expanded`) es solo UI (ni historial ni documento sucio).
+  La animación usa `capas_de_animacion()` y `frames_de_capas()` de
+  `models/anim_io.py` para precomprobación, preview y exportación: no cuentes
+  `layer.visible` directamente ni sustituyas `render_with_effects()` por el
+  render base, porque reaparecerían capas de grupos ocultos o se perderían fx.
 - **Cargar imágenes de disco:** SIEMPRE con `cargar_imagen_orientada(ruta)` de
   `utilidades.py` (QImageReader + setAutoTransform, reexportada por `main.py`),
   que aplica la rotación EXIF de las fotos de móvil. `QImage(ruta)` a secas las
@@ -440,6 +603,21 @@ diera problemas, el usuario puede forzar el backend a mano con
   imágenes grandes tardaba decenas de segundos.
 - **Trabajo pesado (IA, descargas):** nunca en el hilo GUI; usa
   `InferenceRunner.submit()` de `ai/runner.py` (los callbacks llegan al hilo GUI).
+  Antes de lanzar una operación captura su destino con `DestinoCapa` o
+  `DestinoDocumento` (`models/destino_edicion.py`) y vuelve a validarlo en cada
+  callback que pueda modificar estado. No conserves solo un índice: las capas
+  tienen un `uid` estable durante la ejecución y pueden reordenarse. Si el
+  documento se cerró, dejó de ser el activo o su revisión cambió, descarta el
+  resultado; nunca lo redirijas al lienzo o a la capa activos en ese momento.
+- **IPC de inferencia aislada:** `ai/subproc.py`/`subproc_worker.py` deben pasar
+  cualquier array NumPy grande mediante `ai/ipc_arrays.py`, no directamente por
+  `Connection.send()` (pickle duplicaría sus bytes). El directorio temporal es
+  exclusivo de una tarea y se elimina siempre DESPUÉS de terminar el hijo, para
+  que Windows no conserve mapas abiertos. Conserva `allow_pickle=False`, valida
+  que todo descriptor permanezca dentro de ese directorio y desliga en el
+  principal los resultados que sobrevivirán a la limpieza. La espera inicial
+  debe sondear el token/proceso y toda copia grande debe comprobar cancelación
+  por bloques; no restaures un `join(120)` ni esperas largas al cerrar Imago.
 - **Objeto flotante transformable** (selección movida, pegado y texto a girar):
   `MoveTool.begin_paste(image, origin=None, history_name="Pegar", tool_id="paste")`
   levanta una imagen como objeto que se mueve/gira/escala con tiradores. El texto
@@ -491,13 +669,25 @@ plugin es una CARPETA con `manifest.json` + `__init__.py` que define
 
 ## Cómo trabajar en este repo
 
-- **Ediciones quirúrgicas y mínimas.** No reescribas archivos enteros ni cambies
-  estilo/estructura de paso; toca solo lo necesario para la tarea.
-- **Ante la duda, pregunta** antes de implementar (sobre todo en decisiones de
-  diseño o de comportamiento de la UI).
-- Tras editar, **verifica que compila** (`python -m py_compile <archivo>`).
-- Mantén **español**, **CRLF** y el **estilo desde theme.py** en todo lo nuevo.
-- Cambios concisos y explicados; nada de dependencias nuevas sin comentarlo.
+1. Lee este documento y localiza los módulos afectados antes de proponer cambios.
+2. Inspecciona las llamadas, invariantes y patrones vecinos; no edites basándote
+   únicamente en una coincidencia de texto.
+3. Haz **ediciones quirúrgicas y mínimas**. No reescribas archivos enteros ni
+   cambies estilo o estructura de paso; toca solo lo necesario para la tarea.
+4. Si una decisión de diseño o comportamiento de UI es materialmente ambigua,
+   solicita aclaración. Para detalles menores, conserva el comportamiento actual
+   y sigue el patrón más cercano del código.
+5. No añadas dependencias, cambies formatos persistentes ni alteres APIs públicas
+   sin señalarlo expresamente y justificarlo.
+6. Tras editar, revisa el diff para detectar cambios accidentales, especialmente
+   conversiones CRLF/LF, reformateos masivos y archivos generados.
+7. **Verifica que compila** cada archivo Python modificado con
+   `python -m py_compile <archivo>`. Ejecuta comprobaciones adicionales cuando la
+   tarea disponga de ellas, sin inventar que se han realizado pruebas manuales.
+8. Resume al finalizar qué cambió, qué validaste y cualquier riesgo o prueba manual
+   que siga pendiente.
+
+Mantén **español**, **CRLF** y el **estilo desde `theme.py`** en todo lo nuevo.
 
 ## Cosas que NO hacer
 
@@ -510,3 +700,25 @@ plugin es una CARPETA con `manifest.json` + `__init__.py` que define
   los paneles van empotrados en QSplitters precisamente para correr en Wayland
   puro.
 - No introduzcas texto/comentarios en inglés.
+
+## Checklist antes de finalizar una tarea
+
+Comprueba únicamente los puntos aplicables y no afirmes haber validado algo que no
+hayas ejecutado o inspeccionado:
+
+- [ ] El cambio se limita al alcance solicitado y el diff no contiene reformateos
+      ni modificaciones accidentales.
+- [ ] Los `.py` modificados conservan CRLF.
+- [ ] Todo texto visible usa `t()` y tiene traducciones ES/EN/FR en `i18n.py`.
+- [ ] Los controles nuevos usan tokens o funciones de `theme.py`, sin QSS ni
+      colores incrustados.
+- [ ] Los iconos usan rutas `:/icons/...`; si cambió `icons/`, se regeneraron los
+      recursos.
+- [ ] Los cambios de píxeles, capas o imagen participan correctamente en
+      deshacer/rehacer y respetan las invariantes de `QImage`.
+- [ ] El trabajo pesado no bloquea el hilo GUI.
+- [ ] Se mantiene la compatibilidad de los branches específicos de Windows y
+      Linux/Wayland.
+- [ ] Cada archivo Python modificado supera `python -m py_compile`.
+- [ ] La respuesta final distingue entre validaciones ejecutadas y pruebas manuales
+      pendientes.

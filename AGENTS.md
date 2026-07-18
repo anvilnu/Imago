@@ -169,6 +169,17 @@ exif_utils.py           Conserva los metadatos EXIF (fecha, cámara, GPS,
                         re-serializa con Pillow (su TIFF lo rechaza exiv2/KDE y
                         pierde la miniatura); Pillow sólo LEE el bloque original.
                         El lienzo lleva canvas.source_exif del abrir.
+atomic_io.py            Guardado ATÓMICO compartido: escribe en un temporal
+                        de la misma carpeta, cierra/sincroniza y publica con
+                        os.replace(); si algo falla conserva el destino
+                        anterior. En POSIX respeta umask/permisos y no rompe
+                        symlinks. Lo usan .imago, imágenes+EXIF, ORA, PDF,
+                        GIF/WebP, lotes y session.json.
+app_paths.py            Identidad ÚNICA AVNSoft/Imago para QSettings y
+                        QStandardPaths: settings() (migra una sola vez desde
+                        MiEstudio/Imago), idioma() y rutas de datos; el modo
+                        portable queda aislado en datos/Imago.ini sin tocar
+                        el registro. Nunca uses un QSettings() pelado.
 
 models/                 (código, no confundir con los modelos ONNX de IA)
   layer.py              Layer (imagen + máscara no destructiva + blend + opacidad),
@@ -183,6 +194,15 @@ models/                 (código, no confundir con los modelos ONNX de IA)
   autosave.py           AutoSaveManager: copia de recuperación (.imago) cada
                         3 min de las pestañas con cambios; en un cierre limpio se
                         borra, y si queda, al arrancar se ofrece recuperarla.
+  document_state.py     Condición central «documento pendiente» y
+                        ResultadoGuardado (éxito/cancelación/error): la
+                        consumen los cierres seguros de pestaña y de Imago.
+  destino_edicion.py    DestinoCapa/DestinoDocumento: identidad estable (uid
+                        de capa + revisión del documento) que IA y overlays
+                        capturan antes de operar y revalidan al aplicar.
+  anim_io.py            capas_de_animacion() + frames_de_capas(): única
+                        selección y render de fotogramas para la
+                        precomprobación, la preview y la exportación.
 
 tools/                  Una clase por herramienta (tool_id, mouse_press/move/
                         release). Muchas heredan de PenTool/BaseTool.
@@ -302,6 +322,10 @@ generar_recursos.py     Regenera recursos.qrc + recursos_rc.py desde icons/.
                         EJECÚTALO cada vez que añadas/quites/cambies un icono:
                         `python generar_recursos.py`.
 imago_crash.log         Registro de excepciones no capturadas (hook de main.py).
+tests/                  Pruebas de regresión headless (unittest):
+                        `python -m unittest discover -v tests`. Cada arreglo
+                        con riesgo deja aquí su regresión (las POSIX se
+                        omiten automáticamente en Windows).
 ```
 
 ## Convenciones críticas (respétalas siempre)

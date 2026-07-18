@@ -10,13 +10,15 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QObject, QEventLoop, QTimer
 from PySide6.QtGui import QColor, QUndoCommand
-from PySide6.QtWidgets import QApplication, QMainWindow
+from PySide6.QtWidgets import QApplication, QLabel, QMainWindow
 
+from i18n import t
 from models.autosave import AutoSaveManager
 from models.project_io import (crear_instantanea_proyecto, load_project,
                                save_project)
 from ai.runner import CancelToken
 from ventana.menu_archivo import AccionesMenuArchivo
+from ventana.menu_ver import AccionesMenuVer
 from widgets.canvas import Canvas
 
 
@@ -63,9 +65,31 @@ class _MainAutosave(QObject):
     def __init__(self, canvas):
         super().__init__()
         self.tabs = _Tabs(canvas)
+        self.estados_autoguardado = []
+
+    def actualizar_estado_autoguardado(self, estado, hora=None):
+        self.estados_autoguardado.append((estado, hora))
+
+
+class _EstadoAutoguardado(AccionesMenuVer):
+    def __init__(self):
+        self.status_autosave_value = QLabel()
 
 
 class IOSegundoPlanoTests(unittest.TestCase):
+    def test_indicador_conserva_el_error_hasta_un_exito_confirmado(self):
+        estado = _EstadoAutoguardado()
+        self.addCleanup(estado.status_autosave_value.deleteLater)
+
+        estado.actualizar_estado_autoguardado("error")
+        QApplication.processEvents()
+        self.assertEqual(estado.status_autosave_value.text(),
+                         t("status.autosave.error"))
+
+        estado.actualizar_estado_autoguardado("guardado", "12:34:56")
+        self.assertEqual(estado.status_autosave_value.text(),
+                         t("status.autosave.saved", time="12:34:56"))
+
     def test_instantanea_no_cambia_si_se_edita_el_lienzo(self):
         canvas = Canvas(5, 4)
         capa = canvas.layers[0]
@@ -148,6 +172,29 @@ class IOSegundoPlanoTests(unittest.TestCase):
             self.assertEqual(canvas._autosave_revision,
                              canvas.revision_autoguardado)
             self.assertTrue(os.path.exists(manager._session_path()))
+            self.assertEqual(main.estados_autoguardado[0],
+                             ("guardando", None))
+            self.assertEqual(main.estados_autoguardado[-1][0], "guardado")
+            self.assertRegex(main.estados_autoguardado[-1][1],
+                             r"^\d{2}:\d{2}:\d{2}$")
+
+    def test_autoguardado_no_anuncia_exito_si_falla_publicar_manifiesto(self):
+        canvas = Canvas(6, 4)
+        canvas.undo_stack.push(QUndoCommand("Cambio"))
+        main = _MainAutosave(canvas)
+        self.addCleanup(main.deleteLater)
+
+        with tempfile.TemporaryDirectory() as carpeta, \
+                patch("models.autosave.app_paths.base_datos", return_value=carpeta):
+            manager = AutoSaveManager(main, interval_min=60)
+            self.addCleanup(manager.stop)
+            with patch("models.autosave.escribir_atomico", return_value=False):
+                manager.snapshot()
+                self.assertTrue(_esperar(lambda: manager._handle is None))
+
+        self.assertEqual(main.estados_autoguardado,
+                         [("guardando", None), ("error", None)])
+        self.assertFalse(hasattr(canvas, "_autosave_revision"))
 
 
 if __name__ == "__main__":

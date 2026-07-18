@@ -448,6 +448,12 @@ diera problemas, el usuario puede forzar el backend a mano con
 
 ## Patrones de arquitectura (para añadir cosas de forma coherente)
 
+- **Rendimiento como criterio de aceptación:** toda mejora debe evitar trabajo
+  continuo proporcional al número de capas, píxeles o documentos durante la
+  interacción. Prefiere señales/eventos y cachés invalidadas frente a sondeos;
+  desplaza CPU, compresión y E/S pesada fuera del hilo GUI. Añade una regresión
+  o una medición proporcionada al riesgo y no cierres el punto si introduce
+  pausas o ralentizaciones apreciables en el uso normal.
 - **Añadir/ajustar una herramienta:** crea/edita su clase en `tools/`
   (con `tool_id` y `mouse_press/move/release`), instánciala en `set_tool()` de
   `main.py`, y guarda sus parámetros como **atributos del canvas**

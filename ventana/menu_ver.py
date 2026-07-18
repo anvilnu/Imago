@@ -229,6 +229,13 @@ class AccionesMenuVer:
         rl.setContentsMargins(0, 0, 0, 0)
         rl.setSpacing(8)
 
+        self.status_autosave_value = QLabel("")
+        self.status_autosave_value.setToolTip(t("status.autosave.pending.tip"))
+        rl.addWidget(self.status_autosave_value)
+        self.actualizar_estado_autoguardado("pendiente")
+
+        rl.addSpacing(12)
+
         size_box, self.status_size_icon, self.status_size_value = self._make_status_readout("status_size.png")
         size_box.setToolTip(t("status.tt.size"))
         rl.addWidget(size_box)
@@ -268,6 +275,36 @@ class AccionesMenuVer:
         rl.addWidget(self.btn_zoom_in)
 
         self.status_bar.addPermanentWidget(right)
+
+    def actualizar_estado_autoguardado(self, estado, hora=None):
+        """Refleja eventos del autoguardado sin temporizadores ni sondeos.
+
+        ``guardado`` solo llega después de publicar atómicamente el manifiesto
+        de recuperación; por eso la hora visible siempre representa una copia
+        completa y verificable.
+        """
+        label = getattr(self, "status_autosave_value", None)
+        if label is None:
+            return
+        if estado == "guardando":
+            texto = t("status.autosave.saving")
+            tooltip = t("status.autosave.saving.tip")
+            color = theme.WARNING
+        elif estado == "guardado" and hora:
+            texto = t("status.autosave.saved", time=hora)
+            tooltip = t("status.autosave.saved.tip", time=hora)
+            color = theme.TEXT_BRIGHT
+        elif estado == "error":
+            texto = t("status.autosave.error")
+            tooltip = t("status.autosave.error.tip")
+            color = theme.DANGER
+        else:
+            texto = t("status.autosave.pending")
+            tooltip = t("status.autosave.pending.tip")
+            color = theme.TEXT_DIM
+        label.setText(texto)
+        label.setToolTip(tooltip)
+        label.setStyleSheet(f"color: {color};")
 
     def _cancel_current_status_operation(self):
         """El botón compartido cancela la operación que posee el indicador."""

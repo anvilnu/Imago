@@ -12,6 +12,7 @@ conserva todas las capas y sus propiedades."""
 import os
 import json
 import weakref
+from datetime import datetime
 from atomic_io import escribir_atomico
 from PySide6.QtCore import QTimer
 import app_paths
@@ -71,6 +72,16 @@ class AutoSaveManager:
             if marker is not None and hasattr(marker, "canvas"):
                 yield i, marker.canvas
 
+    def _notificar_estado(self, estado, hora=None):
+        """Actualiza el indicador sin acoplar el gestor a widgets concretos.
+
+        Todas las llamadas del flujo normal ocurren en el hilo GUI: ``snapshot``
+        parte del temporizador y los callbacks del runner vuelven a dicho hilo.
+        """
+        callback = getattr(self.main, "actualizar_estado_autoguardado", None)
+        if callable(callback):
+            callback(estado, hora)
+
     @staticmethod
     def _needs_recovery(canvas):
         """Una pestaña necesita copia si tiene cambios sin guardar (pila de
@@ -123,6 +134,8 @@ class AutoSaveManager:
             self.clear()
             return None
 
+        self._notificar_estado("guardando")
+
         def trabajo(_report, token):
             snapshot_completo = True
             guardados = []
@@ -155,20 +168,26 @@ class AutoSaveManager:
         def terminado(resultado):
             self._handle = None
             if resultado is not None:
-                guardados, _publicado = resultado
+                guardados, publicado = resultado
                 for ref_canvas, revision, ok in guardados:
                     canvas = ref_canvas()
-                    if ok and canvas is not None:
+                    if publicado and ok and canvas is not None:
                         if canvas.revision_autoguardado == revision:
                             canvas._autosave_revision = revision
                         else:
                             # Hubo otra edición mientras se comprimía la copia:
                             # encadenar una instantánea de la revisión nueva.
                             self._repetir = True
+                if publicado:
+                    self._notificar_estado(
+                        "guardado", datetime.now().strftime("%H:%M:%S"))
+                else:
+                    self._notificar_estado("error")
             self._programar_repeticion()
 
         def error(_mensaje):
             self._handle = None
+            self._notificar_estado("error")
             self._programar_repeticion()
 
         self._handle = self._runner.submit(
@@ -219,6 +238,9 @@ class AutoSaveManager:
             })
             keep.add(fname)
 
+        if hay_pendientes:
+            self._notificar_estado("guardando")
+
         if entries and snapshot_completo:
             def _escribir_session(ruta_temporal):
                 with open(ruta_temporal, "w", encoding="utf-8") as f:
@@ -230,6 +252,12 @@ class AutoSaveManager:
             # formando un conjunto recuperable coherente.
             if escribir_atomico(self._session_path(), _escribir_session):
                 self._prune(keep)
+                self._notificar_estado(
+                    "guardado", datetime.now().strftime("%H:%M:%S"))
+            else:
+                self._notificar_estado("error")
+        elif hay_pendientes:
+            self._notificar_estado("error")
         elif not hay_pendientes:
             self.clear()
 

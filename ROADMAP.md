@@ -384,9 +384,21 @@ prioridades críticas, porque afectan a la integridad del documento.
 
 ### Mejoras de producto sugeridas por la auditoría
 
-- [ ] **Indicador de autoguardado verificable.** Mostrar estado «guardando»,
+- [x] **Indicador de autoguardado verificable.** Mostrar estado «guardando»,
   hora de la última copia confirmada y error persistente si no pudo escribirse;
   no comunicar éxito antes del `os.replace()` final.
+  Completado el 18-07-2026. La barra de estado incorpora una lectura permanente
+  traducida ES/EN/FR: empieza sin copia confirmada, muestra «guardando» durante
+  el trabajo, conserva «error» si falla y solo publica la hora `HH:mm:ss` cuando
+  tanto las copias como `session.json` han terminado su reemplazo atómico. Una
+  revisión tampoco se marca internamente como autoguardada si falló el
+  manifiesto, de modo que el siguiente ciclo vuelve a intentarla. El indicador
+  es dirigido por eventos y no añade temporizadores ni inspecciones del lienzo;
+  10.000 actualizaciones sintéticas de la etiqueta costaron 29,43 ms en Windows
+  11 (0,0029 ms por evento), frente a como máximo unas pocas por ciclo de tres
+  minutos. Cubierto por regresiones de éxito posterior al manifiesto, fallo de
+  publicación y persistencia visual del error, además de la suite completa de
+  101 pruebas (3 POSIX omitidas en Windows).
 - [ ] **Diagnóstico opcional del documento.** Un panel pequeño con dimensiones,
   capas, memoria estimada, efectos caros y tamaño aproximado del proyecto
   ayudaría a explicar lentitud antes de una operación pesada.

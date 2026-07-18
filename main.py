@@ -721,6 +721,9 @@ class MainWindow(AccionesMenuIA, AccionesMenuAjustes, OpcionesHerramientas,
         # restaura su preview en el lienzo de origen antes de mostrar el nuevo.
         new_marker = self.tabs.widget(index) if index >= 0 else None
         new_canvas = getattr(new_marker, "canvas", None)
+        diagnostico = getattr(self, "diagnostics_view", None)
+        if diagnostico is not None:
+            diagnostico.set_canvas(new_canvas)
         panel = getattr(self, "_active_adjustment_overlay", None)
         if panel is not None and getattr(panel, "canvas", None) is not new_canvas:
             panel.reject()
@@ -1420,7 +1423,7 @@ class MainWindow(AccionesMenuIA, AccionesMenuAjustes, OpcionesHerramientas,
 
     def save_preferences(self):
         """Guarda en QSettings las preferencias que deben sobrevivir al cierre:
-        visibilidad de los cuatro paneles empotrados, tamaños de los splitters
+        visibilidad de los paneles empotrados, tamaños de los splitters
         (anchura de columnas y reparto vertical de la columna derecha) y estado
         de cuadrícula y reglas."""
         s = self.settings
@@ -1429,6 +1432,7 @@ class MainWindow(AccionesMenuIA, AccionesMenuAjustes, OpcionesHerramientas,
         s.setValue("panels/history", self.history_container.isVisible())
         s.setValue("panels/colors", self.colors_container.isVisible())
         s.setValue("panels/histogram", self.histogram_container.isVisible())
+        s.setValue("panels/diagnostics", self.diagnostics_container.isVisible())
         # Orden de la columna derecha (reordenable con ▲/▼). Se guarda como
         # claves, no por índice: saveState() del splitter solo repone tamaños.
         s.setValue("panels/right_order", ",".join(self._right_panel_order()))
@@ -1490,8 +1494,12 @@ class MainWindow(AccionesMenuIA, AccionesMenuAjustes, OpcionesHerramientas,
         self.btn_toggle_colors.setChecked(as_bool(s.value("panels/colors"), True))
         # Histograma en vivo: visible por defecto, como el resto de paneles.
         self.btn_toggle_histogram.setChecked(as_bool(s.value("panels/histogram"), True))
+        # Diagnóstico: deliberadamente cerrado por defecto; no ocupa espacio ni
+        # hace trabajo hasta que el usuario lo solicita.
+        self.btn_toggle_diagnostics.setChecked(
+            as_bool(s.value("panels/diagnostics"), False))
         # Sincronizar la visibilidad de la columna derecha por si se restauran
-        # los tres paneles ocultos (toggled no salta si el estado no cambia).
+        # todos los paneles ocultos (toggled no salta si el estado no cambia).
         self._update_right_column_visibility()
 
         # Reevaluar el selector de color del pie con el estado ya restaurado
@@ -1516,12 +1524,16 @@ class MainWindow(AccionesMenuIA, AccionesMenuAjustes, OpcionesHerramientas,
         orden = str(s.value("panels/right_order") or "")
         if orden:
             claves = [k for k in orden.split(",")
-                      if k in ("layers", "history", "colors", "histogram")]
+                      if k in ("layers", "history", "colors", "histogram",
+                               "diagnostics")]
             # Orden guardado ANTES de existir el panel de Histograma: se
             # respeta el orden del usuario y el Histograma se queda arriba
             # (su posición por defecto).
             if "histogram" not in claves:
                 claves.insert(0, "histogram")
+            if "diagnostics" not in claves:
+                posicion = claves.index("histogram") + 1
+                claves.insert(posicion, "diagnostics")
             for pos, clave in enumerate(claves):
                 cont = getattr(self, f"{clave}_container", None)
                 if cont is not None:

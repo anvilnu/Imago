@@ -262,6 +262,11 @@ widgets/
   layers_panel.py       Panel de capas (incluye LayerPropertiesDialog).
   history_panel.py      Panel de historial (deshacer/rehacer).
   colors_panel.py       Panel de color (primario/secundario, RGB, hex, muestras).
+  histogram_panel.py    Histograma muestreado del documento activo; solo sondea
+                        mientras su panel está visible.
+  document_diagnostics.py  Diagnóstico bajo demanda de dimensiones, capas,
+                        memoria, proyecto y efectos caros; SIN temporizador ni
+                        lectura de píxeles.
   ruler_overlay.py      RulerOverlay: reglas (px/cm) con línea de seguimiento.
   effect_controls.py    CenterPicker y AngleDial (controles de los efectos).
 
@@ -384,7 +389,8 @@ coordenadas LOCALES (no `startSystemMove`) → Wayland-safe.
   que mirar).
 
 ### Paneles empotrados en splitters (no flotan)
-Los cuatro paneles (Herramientas, Capas, Historial, Color) van **empotrados**
+Los paneles (Herramientas, Capas, Historial, Color, Histograma y Diagnóstico)
+van **empotrados**
 dentro de la ventana, no flotan. El montaje (en `create_docks()` de
 `ventana/construccion_ui.py`, nombre histórico) es:
 - Cada panel va envuelto por `_panel_with_header(panel, título, header_buttons)`
@@ -399,26 +405,33 @@ dentro de la ventana, no flotan. El montaje (en `create_docks()` de
   rejilla SIEMPRE a 2 columnas); el centro
   (lienzo) es la celda elástica (`setStretchFactor(1, 1)`). Los separadores se
   estilizan con `theme.splitter_qss()` (línea de 1 px, azul al pasar/arrastrar).
-- `self.right_splitter` (QSplitter vertical) = Capas · Historial · Color por
-  defecto, **REORDENABLES por el usuario** con los botones ▲/▼ de cada cabecera
+- `self.right_splitter` (QSplitter vertical) = Histograma · Diagnóstico ·
+  Historial · Capas · Color por defecto (Diagnóstico arranca oculto),
+  **REORDENABLES por el usuario** con los botones ▲/▼ de cada cabecera
   (`_move_right_panel`, que conserva los tamaños con el panel; orden persistido
   en `panels/right_order` y aplicado en `restore_preferences` ANTES del
-  `restoreState`, que repone tamaños por posición). **Color NO se estira**: los
+  `restoreState`, que repone tamaños por posición). **Color, Histograma y
+  Diagnóstico NO se estiran**: los
   stretch factors se aplican POR IDENTIDAD con `_apply_right_stretch_factors()`
-  (Capas=1, Historial=1, Color=0), nunca a mano por índice (el orden puede
+  (Capas=1, Historial=1, los demás=0), nunca a mano por índice (el orden puede
   cambiar) ni con `setFixedHeight`. IMPORTANTE: fijar el alto de Color con
   `setFixedHeight` le pone un `maximumHeight` que, cuando Color queda como
   único hijo visible (Capas e Historial ocultos), lo hereda el `right_splitter` y
   con él el `root_splitter`, descuadrando toda la interfaz (se iba hacia abajo).
   Con stretch factors Capas e Historial absorben el espacio y Color mantiene su
   alto sin imponer ningún máximo.
-- `_update_right_column_visibility()` oculta el `right_splitter` entero cuando sus
-  tres paneles están ocultos (el lienzo recupera el espacio) y lo reaparece si se
-  abre alguno. Conectado a los tres toggles y sincronizado en `restore_preferences`.
+- `_update_right_column_visibility()` oculta el `right_splitter` entero cuando
+  todos sus paneles están ocultos (el lienzo recupera el espacio) y lo reaparece
+  si se abre alguno. Conectado a todos los toggles y sincronizado en
+  `restore_preferences`.
 - Los botones `btn_toggle_*` hacen `container.setVisible(...)`. El de Historial
   apunta a `history_container` (estable); el panel interno `history_view` se
   **recrea** al cambiar de pestaña — ver el swap en `on_tab_changed`, que lo
   reemplaza DENTRO de su contenedor con `layout().replaceWidget(...)`.
+- Diagnóstico (`DiagnosticoDocumentoWidget`) no lleva sondeo: oculto cuesta cero;
+  al abrir lee solo metadatos, `cacheKey()` y `sizeInBytes()`. Si cambia el
+  historial visible, únicamente marca «Actualizar •» y espera al usuario. No
+  debe renderizar capas, convertir imágenes ni comprimir para calcular cifras.
 - El `RulerOverlay` es hijo de `content_container`; un `eventFilter` re-sincroniza
   las reglas ante cualquier `Resize` de ese contenedor (arrastre de splitter,
   ocultar panel, resize de ventana).

@@ -2,9 +2,17 @@ name: Construir distribuciones
 
 on:
   workflow_dispatch:
-  push:
-    tags:
-      - 'v*'
+    inputs:
+      publicar_release:
+        description: Crear o actualizar el borrador de Release
+        required: true
+        default: false
+        type: boolean
+      etiqueta:
+        description: Etiqueta ya subida, por ejemplo v1.1 (solo para Release)
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: write
@@ -29,22 +37,32 @@ jobs:
     steps:
       - name: Descargar el código
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.publicar_release && inputs.etiqueta || github.ref }}
 
       - name: Comprobar versión
         id: version
+        env:
+          SOLICITAR_PUBLICACION: ${{ inputs.publicar_release }}
+          ETIQUETA_SOLICITADA: ${{ inputs.etiqueta }}
         shell: bash
         run: |
           VERSION="$(python3 -c 'from imago_version import APP_VERSION; print(APP_VERSION)')"
           [[ "$VERSION" =~ ^[0-9]+\.[0-9]+(\.[0-9]+){0,2}$ ]]
-          PUBLICAR=false
-          ETIQUETA=""
-          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
-            ETIQUETA="$GITHUB_REF_NAME"
+          PUBLICAR="${SOLICITAR_PUBLICACION:-false}"
+          ETIQUETA="$ETIQUETA_SOLICITADA"
+          if [[ "$PUBLICAR" == "true" ]]; then
+            if [[ -z "$ETIQUETA" ]]; then
+              echo "Indica la etiqueta que debe recibir los paquetes." >&2
+              exit 1
+            fi
             if [[ "$ETIQUETA" != "v$VERSION" ]]; then
               echo "La etiqueta $ETIQUETA no coincide con APP_VERSION=$VERSION." >&2
               exit 1
             fi
-            PUBLICAR=true
+          elif [[ -n "$ETIQUETA" ]]; then
+            echo "La etiqueta solo debe indicarse al crear un borrador de Release." >&2
+            exit 1
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "publicar=$PUBLICAR" >> "$GITHUB_OUTPUT"
@@ -71,6 +89,8 @@ jobs:
     steps:
       - name: Descargar el código
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.publicar_release && inputs.etiqueta || github.ref }}
 
       - name: Preparar Python
         uses: actions/setup-python@v5
@@ -133,6 +153,8 @@ jobs:
     steps:
       - name: Descargar el código
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.publicar_release && inputs.etiqueta || github.ref }}
 
       - name: Preparar Python
         uses: actions/setup-python@v5

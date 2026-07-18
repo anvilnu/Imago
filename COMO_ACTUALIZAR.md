@@ -33,9 +33,10 @@ tiempo de ejecución.
 
 En GitHub, abre **Actions ▸ Construir distribuciones ▸ Run workflow**. También se
 puede dejar sin ejecutar hasta que Imago esté listo: subir cambios normales a
-`main` no inicia ninguna construcción. Una ejecución manual de prueba construye
-y valida todo, pero no conserva los paquetes, así que no ocupa la cuota reducida
-de almacenamiento de artefactos.
+`main` o subir una etiqueta nueva no inicia ninguna construcción. Deja sin
+marcar **Crear o actualizar el borrador de Release** y pulsa **Run workflow**:
+esa ejecución manual construye y valida todo, pero no conserva los paquetes, así
+que no ocupa la cuota reducida de almacenamiento de artefactos.
 
 ### Crear los paquetes descargables de una versión
 
@@ -48,13 +49,19 @@ de almacenamiento de artefactos.
    git push origin v1.1
    ```
 
-3. GitHub volverá a construir los cuatro paquetes y creará un **borrador** en
-   **Releases**. No se publica automáticamente: primero puedes descargarlo,
-   probarlo y, cuando estés conforme, pulsar **Publish release**.
+   Esto **no ejecuta GitHub Actions**: la etiqueta queda simplemente preparada.
+3. Cuando quieras construir, abre **Actions ▸ Construir distribuciones ▸ Run
+   workflow**, marca **Crear o actualizar el borrador de Release**, escribe
+   `v1.1` en **Etiqueta ya subida** y pulsa **Run workflow**.
+4. Solo entonces GitHub construirá los cuatro paquetes desde el código exacto de
+   esa etiqueta y creará un **borrador** en **Releases**. No se publica
+   automáticamente: primero puedes descargarlo, probarlo y, cuando estés
+   conforme, pulsar **Publish release**.
 
-Si la etiqueta no coincide con `APP_VERSION` —por ejemplo, `v1.2` con el código
-todavía en `1.1`— el proceso se detiene para no publicar paquetes mal nombrados.
-Si se repite una ejecución, los archivos del mismo borrador se actualizan.
+Si se solicita un Release sin etiqueta, o esta no coincide con `APP_VERSION`
+—por ejemplo, `v1.2` con el código todavía en `1.1`— el proceso se detiene para
+no publicar paquetes mal nombrados. Si se repite una ejecución, los archivos
+del mismo borrador se actualizan.
 
 ### Coste y almacenamiento
 

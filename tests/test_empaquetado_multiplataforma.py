@@ -59,7 +59,14 @@ class EmpaquetadoMultiplataformaTests(unittest.TestCase):
         self.assertIn("--draft", workflow)
         self.assertIn("APPIMAGETOOL_SHA256", workflow)
         self.assertIn("workflow_dispatch:", workflow)
+        self.assertIn("publicar_release:", workflow)
+        self.assertIn("ETIQUETA_SOLICITADA", workflow)
         self.assertNotIn("branches:", workflow)
+        self.assertNotIn("\n  push:", workflow)
+        self.assertIn(
+            "ref: ${{ inputs.publicar_release && inputs.etiqueta || github.ref }}",
+            workflow,
+        )
 
     def test_receta_pyinstaller_separa_icono_por_plataforma(self):
         receta = self._leer("Imago.spec")

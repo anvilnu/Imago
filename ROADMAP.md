@@ -363,11 +363,27 @@ prioridades críticas, porque afectan a la integridad del documento.
   `umask`, permisos y enlaces simbólicos y quedan pendientes de ejecución física
   en Linux/CI.
 
-- [ ] **Crear un banco de rendimiento reproducible.** Generar documentos de
+- [x] **Crear un banco de rendimiento reproducible.** Generar documentos de
   tamaños y números de capas conocidos y medir inicio/movimiento/fin de trazo,
   cambio/cierre de pestaña, composición, efectos, guardado, autoguardado y pico
   de RAM. Registrar una línea base para impedir regresiones y decidir con datos
   los proyectos grandes aparcados.
+  Completado el 18-07-2026. `benchmarks/benchmark_editor.py` ofrece perfiles
+  rápido, estándar y grande con semilla fija, Qt `offscreen`, calentamientos y
+  repeticiones configurables. Cronometra el `PenTool` y `PaintCommand` reales,
+  cambio de pestaña con reconstrucción de Capas/Historial/miniaturas, destrucción
+  diferida al cerrar, composición multicapa, gaussiano, guardado `.imago` y
+  autoguardado con `session.json`. Registra muestras, mediana/mínimo/máximo,
+  entorno y RSS nativo muestreado cada 2 ms mediante APIs de Windows, Linux o
+  macOS, sin `psutil`. La salida JSON se puede comparar con márgenes relativo y
+  absoluto; devuelve error si tiempo o memoria exceden el presupuesto.
+  Línea base Windows 11, perfil estándar 1024×768/8 capas: inicio/movimiento/fin
+  de trazo 1,075/0,644/2,417 ms; cambio/cierre de pestaña 24,705/0,118 ms;
+  composición 3,457 ms; gaussiano 102,537 ms; guardado/autoguardado
+  331,164/327,274 ms; pico 224,254 MiB (+129,574 MiB). El JSON versionado
+  conserva equipo y versiones. Cubierto por 3 regresiones del ejecutor,
+  serialización y comparación, además de la suite completa de 118 pruebas
+  (3 POSIX omitidas en Windows).
 
 - [ ] **Verificar completamente los modelos de IA instalados.**
   `is_installed()` solo comprueba que exista el `.onnx`; no verifica hash ni

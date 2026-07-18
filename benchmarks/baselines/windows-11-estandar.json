@@ -1,0 +1,153 @@
+{
+  "version_banco": 1,
+  "fecha_utc": "2026-07-18T09:43:51.111062+00:00",
+  "perfil": "estandar",
+  "semilla": 20260718,
+  "configuracion": {
+    "ancho": 1024,
+    "alto": 768,
+    "capas": 8,
+    "pestanas": 4,
+    "movimientos": 24,
+    "radio_efecto": 4.0,
+    "repeticiones": 5,
+    "calentamientos": 1
+  },
+  "entorno": {
+    "sistema": "Windows-11-10.0.26200-SP0",
+    "plataforma": "win32",
+    "maquina": "AMD64",
+    "procesador": "AMD64 Family 23 Model 8 Stepping 2, AuthenticAMD",
+    "nucleos_logicos": 12,
+    "ram_total_mib": 32679.1,
+    "python": "3.14.6",
+    "pyside6": "6.11.1",
+    "numpy": "2.5.0",
+    "qt_qpa_platform": "offscreen"
+  },
+  "memoria": {
+    "rss_inicial_mib": 94.68,
+    "rss_pico_mib": 224.254,
+    "incremento_pico_mib": 129.574
+  },
+  "duracion_total_s": 5.256,
+  "metricas": {
+    "trazo_inicio_ms": {
+      "unidad": "ms",
+      "mediana": 1.0751,
+      "minimo": 1.0276,
+      "maximo": 1.0954,
+      "muestras": [
+        1.0441,
+        1.0276,
+        1.0954,
+        1.0751,
+        1.0927
+      ]
+    },
+    "trazo_movimiento_ms": {
+      "unidad": "ms",
+      "mediana": 0.6442,
+      "minimo": 0.6309,
+      "maximo": 0.6494,
+      "muestras": [
+        0.6493,
+        0.6442,
+        0.6345,
+        0.6309,
+        0.6494
+      ]
+    },
+    "trazo_fin_ms": {
+      "unidad": "ms",
+      "mediana": 2.417,
+      "minimo": 2.3465,
+      "maximo": 2.5365,
+      "muestras": [
+        2.3465,
+        2.4164,
+        2.5365,
+        2.4574,
+        2.417
+      ]
+    },
+    "pestana_cambio_ms": {
+      "unidad": "ms",
+      "mediana": 24.7054,
+      "minimo": 24.3803,
+      "maximo": 26.1883,
+      "muestras": [
+        26.1883,
+        24.3803,
+        24.7054,
+        24.8852,
+        24.4468
+      ]
+    },
+    "pestana_cierre_ms": {
+      "unidad": "ms",
+      "mediana": 0.1183,
+      "minimo": 0.1161,
+      "maximo": 0.421,
+      "muestras": [
+        0.1209,
+        0.1161,
+        0.421,
+        0.1179,
+        0.1183
+      ]
+    },
+    "composicion_ms": {
+      "unidad": "ms",
+      "mediana": 3.4572,
+      "minimo": 3.3959,
+      "maximo": 3.6086,
+      "muestras": [
+        3.6086,
+        3.5169,
+        3.4572,
+        3.3959,
+        3.4182
+      ]
+    },
+    "efecto_gaussiano_ms": {
+      "unidad": "ms",
+      "mediana": 102.5366,
+      "minimo": 101.8406,
+      "maximo": 102.9641,
+      "muestras": [
+        102.9641,
+        102.4382,
+        102.5366,
+        101.8406,
+        102.6457
+      ]
+    },
+    "guardado_imago_ms": {
+      "unidad": "ms",
+      "mediana": 331.1635,
+      "minimo": 323.3372,
+      "maximo": 388.5706,
+      "muestras": [
+        323.3372,
+        388.5706,
+        331.1635,
+        343.7445,
+        326.145
+      ]
+    },
+    "autoguardado_ms": {
+      "unidad": "ms",
+      "mediana": 327.2739,
+      "minimo": 326.8538,
+      "maximo": 337.5839,
+      "muestras": [
+        327.2739,
+        336.9947,
+        337.5839,
+        326.9181,
+        326.8538
+      ]
+    }
+  }
+}

@@ -105,6 +105,9 @@ main.py                 Ventana principal (MainWindow, QMainWindow SIN MARCO):
                         vive en los MIXINS del paquete ventana/, que MainWindow
                         hereda; todo sigue llamándose vía self.* igual que
                         siempre:
+imago_version.py        ÚNICA FUENTE DE VERDAD de `APP_VERSION`; la consumen
+                        Acerca de, el nombre del ZIP y el instalador. Para una
+                        versión nueva solo se cambia esta constante.
 
 ventana/                Paquete con los MIXINS de MainWindow:
   menu_ia.py            AccionesMenuIA: handlers ai_* del menú IA y auxiliares

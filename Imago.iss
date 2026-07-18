@@ -1,14 +1,17 @@
 ; Inno Setup: instalador de Imago. Requiere Inno Setup 6.3 o superior.
-; Compilar abriendo este archivo en Inno Setup y pulsando Build, o por consola:
-;   & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" Imago.iss
+; empaquetar.ps1 pasa MyAppVersion desde la fuente única imago_version.py.
 ; Resultado: installer\ImagoSetup.exe
 ;
 ; IMPORTANTE: antes de compilar el instalador hay que haber construido el .exe
 ; (dist\Imago\ con PyInstaller). Este script empaqueta esa carpeta.
 
+#ifndef MyAppVersion
+  #error MyAppVersion no definida. Ejecuta empaquetar.ps1 para compilar.
+#endif
+
 [Setup]
 AppName=Imago
-AppVersion=1.0
+AppVersion={#MyAppVersion}
 AppPublisher=AVNSoft
 DefaultDirName={autopf}\Imago
 DefaultGroupName=Imago

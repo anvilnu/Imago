@@ -1,4 +1,5 @@
 from i18n import t
+from imago_version import APP_VERSION
 # help_dialogs.py
 """Diálogos del menú Ayuda y de Preferencias (Edición → Preferencias).
 
@@ -19,8 +20,6 @@ from PySide6.QtGui import QPixmap
 from PySide6.QtCore import Qt, QFile
 from widgets.custom_titlebar import FramelessDialog
 import theme
-
-APP_VERSION = "1.0"
 
 def _dark():
     """Estilo base de los diálogos de ayuda (fondo + etiquetas). Función (no

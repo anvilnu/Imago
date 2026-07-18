@@ -2,7 +2,7 @@
 
 Guía **paso a paso, sin prisa**. Úsala cada vez que cambies el código de Imago y
 quieras volver a generar el **instalador** (`ImagoSetup.exe`) y la **versión
-portable** (`Imago-1.0-portable.zip`).
+portable** (`Imago-<versión>-portable.zip`).
 
 > **La idea en una frase:** ejecutas **un solo script** (`empaquetar.ps1`) y él te
 > regenera TODO: el `.exe`, el instalador y el ZIP portable. Nada más.
@@ -75,7 +75,7 @@ Ya están regenerados y listos para repartir:
 | Qué | Dónde queda |
 |---|---|
 | 🧩 **Instalador** | `installer\ImagoSetup.exe` |
-| 🎒 **Portable** | `Imago-1.0-portable.zip` |
+| 🎒 **Portable** | `Imago-<versión>-portable.zip` |
 
 La última fase muestra el tamaño exacto y el SHA-256 de ambos archivos. También
 comprueba que el ZIP tenga su marcador `portable.txt`, que la distribución
@@ -130,7 +130,7 @@ el verificador actual.
 
 - **Instalada:** ejecuta el nuevo `installer\ImagoSetup.exe`. Se instala **encima**
   de la anterior (no hace falta desinstalar nada). Tus ajustes se conservan.
-- **Portable:** extrae el nuevo `Imago-1.0-portable.zip` **encima de la carpeta
+- **Portable:** extrae el nuevo `Imago-<versión>-portable.zip` **encima de la carpeta
   vieja** y acepta reemplazar. Como la carpeta `datos\` **no** viene dentro del ZIP,
   **no se borra**: conservas tus ajustes y modelos de IA. 👌
 
@@ -138,16 +138,17 @@ el verificador actual.
 
 ## 🔢 (Opcional) Cambiar el número de versión
 
-Si quieres pasar, por ejemplo, de **1.0** a **1.1**, cambia el número en estos **3
-sitios** antes de ejecutar el script del Paso 4:
+La versión tiene una **única fuente de verdad**: `imago_version.py`. Para pasar,
+por ejemplo, de **1.0** a **1.1**, abre ese archivo y cambia solamente:
 
-1. **`help_dialogs.py`** → busca `APP_VERSION = "1.0"` y ponlo en `"1.1"`
-   *(es el número que se ve en Ayuda → Acerca de).*
-2. **`Imago.iss`** → línea `AppVersion=1.0` → `AppVersion=1.1`
-3. **`empaquetar.ps1`** → línea `$zip = "Imago-1.0-portable.zip"` →
-   `$zip = "Imago-1.1-portable.zip"` *(para que el ZIP salga con el nombre nuevo).*
+```python
+APP_VERSION = "1.1"
+```
 
-Si no cambias nada, no pasa nada: simplemente se regenera la 1.0 encima.
+Admite versiones numéricas como `1.1`, `1.2.1` o `2.0.0.1`. Después ejecuta
+`empaquetar.ps1` como siempre. El mismo valor aparecerá en Ayuda ▸ Acerca de,
+en los metadatos del instalador y en el nombre `Imago-1.1-portable.zip`. Ya no
+hay que editar `help_dialogs.py`, `Imago.iss` ni `empaquetar.ps1`.
 
 ---
 
@@ -162,7 +163,7 @@ Si no cambias nada, no pasa nada: simplemente se regenera la 1.0 encima.
 - **"Inno Setup no encontrado"** (amarillo al final) → el `.exe` y el ZIP portable
   **sí se generaron** y se verifican; el instalador se omite y cualquier copia
   anterior de `ImagoSetup.exe` **no cuenta como actualizada**. Instala Inno Setup 6
-  (ver abajo), o abre `Imago.iss` con doble clic y pulsa el botón **Build (▶)**.
+  (ver abajo) y vuelve a ejecutar `empaquetar.ps1`.
 - **Windows dice "Editor desconocido"** al instalar/abrir → es normal (el `.exe` no
   está firmado): *Más información → Ejecutar de todos modos*.
 - **El antivirus marca el `.exe`** → es un falso positivo típico de los programas
@@ -192,4 +193,4 @@ Y **Inno Setup 6** se descarga e instala desde: https://jrsoftware.org/isdl.php
 3. Terminal en la carpeta del proyecto.
 4. `powershell -ExecutionPolicy Bypass -File .\empaquetar.ps1`
 5. Confirma que la verificación termina en «Distribución apta para publicar» y
-   recoge `installer\ImagoSetup.exe` y `Imago-1.0-portable.zip`.
+   recoge `installer\ImagoSetup.exe` y `Imago-<versión>-portable.zip`.

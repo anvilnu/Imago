@@ -5,6 +5,11 @@
 #   e instalar Inno Setup 6 (https://jrsoftware.org/isdl.php)
 
 $py = ".\.venv\Scripts\python.exe"
+$versionSalida = & $py -c "from imago_version import APP_VERSION; print(APP_VERSION)"
+if ($LASTEXITCODE -ne 0) { Write-Host "No se pudo leer la versión de imago_version.py." -ForegroundColor Red; exit 1 }
+$version = "$versionSalida".Trim()
+if ($version -notmatch '^\d+\.\d+(?:\.\d+){0,2}$') { Write-Host "Versión no válida: $version" -ForegroundColor Red; exit 1 }
+Write-Host "Versión de Imago: $version" -ForegroundColor Cyan
 
 Write-Host "== 1/5  Icono =="
 & $py -c "from PIL import Image; Image.open('icons/imago.png').save('icons/imago.ico', sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)])"
@@ -25,19 +30,19 @@ $isccCandidatos = @(
 $iscc = $isccCandidatos | Where-Object { Test-Path $_ } | Select-Object -First 1
 $instaladorGenerado = $false
 if ($iscc) {
-    & $iscc Imago.iss
+    & $iscc "/DMyAppVersion=$version" Imago.iss
     if ($LASTEXITCODE -ne 0) { Write-Host "Inno Setup falló. Revisa el error de arriba." -ForegroundColor Red; exit 1 }
     $instaladorGenerado = $true
     Write-Host "Listo: installer\ImagoSetup.exe" -ForegroundColor Green
 } else {
-    Write-Host "Inno Setup no encontrado. Abre Imago.iss en Inno Setup y pulsa Build." -ForegroundColor Yellow
+    Write-Host "Inno Setup no encontrado. Instálalo y vuelve a ejecutar empaquetar.ps1." -ForegroundColor Yellow
 }
 
 Write-Host "== 4/5  ZIP portable (autocontenido) =="
 # Se anade el marcador portable.txt SOLO al ZIP (se borra tras comprimir): con el,
 # Imago guarda ajustes, modelos y autoguardado en la carpeta 'datos' junto al .exe.
 $marker = "dist\Imago\portable.txt"
-$zip = "Imago-1.0-portable.zip"
+$zip = "Imago-$version-portable.zip"
 Set-Content -Path $marker -Value "Modo portable: Imago guarda sus datos (ajustes, modelos de IA y autoguardado) en la carpeta 'datos' junto a este ejecutable. No borres este archivo." -Encoding UTF8
 try {
     if (Test-Path $zip) { Remove-Item $zip -Force }

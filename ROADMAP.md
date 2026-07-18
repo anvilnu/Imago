@@ -399,7 +399,7 @@ prioridades críticas, porque afectan a la integridad del documento.
   minutos. Cubierto por regresiones de éxito posterior al manifiesto, fallo de
   publicación y persistencia visual del error, además de la suite completa de
   101 pruebas (3 POSIX omitidas en Windows).
-- [x] **Diagnóstico opcional del documento.** Un panel pequeño con dimensiones,
+- [x] **Diagnóstico opcional del documento.** Una vista compacta con dimensiones,
   capas, memoria estimada, efectos caros y tamaño aproximado del proyecto
   ayudaría a explicar lentitud antes de una operación pesada.
   Completado el 18-07-2026. El botón superior y Ver ▸ Diagnóstico del documento
@@ -414,9 +414,14 @@ prioridades críticas, porque afectan a la integridad del documento.
   visible solo marca «Actualizar •» y oculto no mantiene conexiones. Medición en
   Windows 11 con 200 capas y 1.000 pasos de historial: mediana de 2,323 ms y
   máximo de 2,411 ms por actualización manual. La apertura mantuvo idéntico el
-  tamaño mínimo de MainWindow (1014×860 en el smoke headless). Cubierto por 4
+  tamaño mínimo de MainWindow (1014×860 en el smoke headless). La ventana
+  conserva su ancho y ajusta el alto al contenido (251 px con los datos en una
+  línea, frente a los 345 px fijos anteriores), sin hueco bajo Actualizar; si
+  una etiqueta necesita más líneas, crece y vuelve a compactarse automáticamente.
+  Cubierto por 5
   regresiones de lectura sin píxeles, memoria compartida/tamaño de proyecto,
-  ciclo oculto e independencia de ventana, además de la suite completa de 105
+  ciclo oculto, independencia de ventana y alto dinámico, además de la suite
+  completa de 106
   pruebas (3 POSIX omitidas en Windows).
 - [ ] **Gestor de recuperaciones.** En vez de una única pregunta global al
   arrancar, listar cada copia con nombre, fecha, miniatura y ruta original para

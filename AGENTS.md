@@ -443,7 +443,9 @@ activo. Su contenido no lleva sondeo: al abrir lee solo metadatos, `cacheKey()` 
 `sizeInBytes()`. Si cambia el historial visible, únicamente marca «Actualizar •»
 y espera al usuario. No debe volver al `right_splitter` ni renderizar capas,
 convertir imágenes o comprimir para calcular cifras: su ventana independiente
-evita que la suma de alturas mínimas de los paneles agrande MainWindow.
+evita que la suma de alturas mínimas de los paneles agrande MainWindow. Conserva
+el ancho de 460 px, pero su alto se recalcula desde el contenido: no debe dejar
+espacio vacío bajo Actualizar y debe crecer si la información ocupa más líneas.
 
 ### Maximizar/restaurar (ventana sin marco)
 **En Windows** se hace a mano (no `showMaximized()`/`showNormal()`, poco fiables

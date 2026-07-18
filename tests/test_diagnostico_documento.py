@@ -129,7 +129,35 @@ class DiagnosticoDocumentoTests(unittest.TestCase):
         self.assertFalse(dialogo.isModal())
         self.assertEqual(dialogo.findChildren(QTimer), [])
         self.assertEqual(dialogo._body.size().width(), 460)
+        self.assertLess(dialogo._body.size().height(), 310)
+        self.assertEqual(
+            dialogo._body.size().height(),
+            dialogo.body_layout.totalHeightForWidth(460))
         self.assertEqual(principal.minimumSizeHint(), minimo_antes)
+        dialogo.close()
+        _APP.processEvents()
+
+    def test_dialogo_ajusta_el_alto_si_la_informacion_ocupa_mas_lineas(self):
+        principal = _VentanaFalsa(Canvas(40, 30))
+        dialogo = DiagnosticoDocumentoDialog(principal)
+        self.addCleanup(principal.deleteLater)
+
+        dialogo.show()
+        _APP.processEvents()
+        alto_una_linea = dialogo.height()
+
+        with patch.object(
+                dialogo._diagnostico, "_texto_efectos",
+                return_value="Línea 1\nLínea 2\nLínea 3"):
+            dialogo.actualizar()
+            _APP.processEvents()
+        self.assertGreater(dialogo.height(), alto_una_linea)
+
+        with patch.object(dialogo._diagnostico, "_texto_efectos",
+                          return_value="Una línea"):
+            dialogo.actualizar()
+            _APP.processEvents()
+        self.assertEqual(dialogo.height(), alto_una_linea)
         dialogo.close()
         _APP.processEvents()
 

@@ -2,16 +2,16 @@
 """Diagnóstico ligero y bajo demanda del documento activo.
 
 Las métricas recorren objetos y tamaños de buffers ya existentes; nunca leen
-píxeles, renderizan capas ni comprimen el proyecto. El panel no usa temporizador:
-oculto cuesta cero y, visible, una edición solo marca los datos como pendientes
-hasta que el usuario pulsa Actualizar.
+píxeles, renderizan capas ni comprimen el proyecto. La ventana no usa
+temporizador: cerrada cuesta cero y, visible, una edición solo marca los datos
+como pendientes hasta que el usuario pulsa Actualizar.
 """
 
 import os
 from dataclasses import dataclass
 from typing import Optional
 
-from PySide6.QtCore import QObject, Qt
+from PySide6.QtCore import QObject, Qt, Signal
 from PySide6.QtGui import QImage
 from PySide6.QtWidgets import (QFormLayout, QHBoxLayout, QLabel, QPushButton,
                                QVBoxLayout, QWidget)
@@ -179,6 +179,8 @@ def formatear_bytes(cantidad):
 class DiagnosticoDocumentoWidget(QWidget):
     """Contenido del diagnóstico: calcula al mostrarse y luego bajo demanda."""
 
+    contenido_actualizado = Signal()
+
     def __init__(self, main_window, parent=None):
         super().__init__(parent)
         self._main = main_window
@@ -290,6 +292,7 @@ class DiagnosticoDocumentoWidget(QWidget):
             for valor in self._valores.values():
                 valor.setText(t("diagnostics.not_available"))
             self._aviso.setText(t("diagnostics.no_document"))
+            self.contenido_actualizado.emit()
             return
 
         diagnostico = analizar_documento(canvas)
@@ -328,6 +331,7 @@ class DiagnosticoDocumentoWidget(QWidget):
         self._aviso.setText(
             t("diagnostics.factors", factors=" · ".join(factores))
             if factores else t("diagnostics.factors.none"))
+        self.contenido_actualizado.emit()
 
 
 class DiagnosticoDocumentoDialog(FramelessDialog):
@@ -339,10 +343,37 @@ class DiagnosticoDocumentoDialog(FramelessDialog):
         self.setModal(False)
         self.setWindowModality(Qt.WindowModality.NonModal)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
-        self._body.setFixedSize(460, 310)
+        self._body.setFixedWidth(460)
 
         self._diagnostico = DiagnosticoDocumentoWidget(main_window, self._body)
         self.body_layout.addWidget(self._diagnostico)
+        self._diagnostico.contenido_actualizado.connect(
+            self._ajustar_alto_al_contenido)
+        self._ajustar_alto_al_contenido()
+
+    def _ajustar_alto_al_contenido(self):
+        """Elimina huecos y crece si las etiquetas necesitan más líneas."""
+        for etiqueta in self._diagnostico.findChildren(QLabel):
+            etiqueta.updateGeometry()
+        contenido_layout = self._diagnostico.layout()
+        contenido_layout.invalidate()
+        contenido_layout.activate()
+
+        margenes = self.body_layout.contentsMargins()
+        ancho = self._body.width() - margenes.left() - margenes.right()
+        alto_contenido = self._diagnostico.heightForWidth(ancho)
+        if alto_contenido < 0:
+            alto_contenido = self._diagnostico.sizeHint().height()
+        alto = alto_contenido + margenes.top() + margenes.bottom()
+        if alto > 0 and alto != self._body.height():
+            self._body.setFixedHeight(alto)
+            self.body_layout.invalidate()
+            self.body_layout.activate()
+            self._frame.layout().invalidate()
+            self._frame.layout().activate()
+            self.layout().invalidate()
+            self.layout().activate()
+            self.adjustSize()
 
     def set_canvas(self, canvas):
         self._diagnostico.set_canvas(canvas)

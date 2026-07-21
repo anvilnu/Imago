@@ -1,0 +1,686 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Imago es un editor de imágenes de escritorio libre (GPLv3) con capas, selección, más de 55 ajustes y efectos, y funciones de IA que se ejecutan en tu propio equipo. Para Linux y Windows.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" type="image/webp" href="@@IMG:logo@@">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Imago — Editor de imágenes con IA local">
+<meta property="og:description" content="Editor de imágenes de escritorio libre con IA local: quita fondos, coloriza, restaura y mucho más, sin enviar tus fotos a ningún servidor.">
+<meta property="og:image" content="https://anvilnu.github.io/Imago/imagenes_web/general.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<title>Imago — Editor de imágenes con IA local</title>
+<style>
+  @font-face{
+    font-family:"Cantarell";
+    src:url("@@FONT@@") format("woff2");
+    font-weight:100 800; font-style:normal; font-display:swap;
+  }
+
+  /* ---------- Tokens (heredados de theme.py de Imago) ---------- */
+  :root{
+    --accent:#0a72c4; --accent-bright:#0d7ee0; --accent-deep:#007acc; --pressed:#cfe4f5;
+    --bg:#eef0f4; --surface:#ffffff; --surface-2:#f5f7fa; --elev:#ffffff;
+    --border:#dde1e8; --border-strong:#c7cdd6;
+    --text:#1c1f24; --muted:#5b6270; --faint:#8a909c;
+    --shadow:0 1px 2px rgba(20,24,32,.06),0 8px 24px rgba(20,24,32,.08);
+    --checker:#e7eaef;
+    --font-display:"Cantarell",system-ui,sans-serif;
+    --font-body:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --font-mono:ui-monospace,"DejaVu Sans Mono","SF Mono",Menlo,monospace;
+    --maxw:1140px;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --accent:#3399dd; --accent-bright:#5cb0ea; --accent-deep:#007acc; --pressed:#1a4f7c;
+      --bg:#1b1c1f; --surface:#232427; --surface-2:#2b2b2e; --elev:#2e2f33;
+      --border:#3a3b40; --border-strong:#4a4c52;
+      --text:#e0e0e0; --muted:#a2a7b0; --faint:#767b85;
+      --shadow:0 1px 2px rgba(0,0,0,.3),0 12px 34px rgba(0,0,0,.42);
+      --checker:#2a2b2e;
+    }
+  }
+  :root[data-theme="light"]{
+    --accent:#0a72c4; --accent-bright:#0d7ee0; --accent-deep:#007acc; --pressed:#cfe4f5;
+    --bg:#eef0f4; --surface:#ffffff; --surface-2:#f5f7fa; --elev:#ffffff;
+    --border:#dde1e8; --border-strong:#c7cdd6;
+    --text:#1c1f24; --muted:#5b6270; --faint:#8a909c;
+    --shadow:0 1px 2px rgba(20,24,32,.06),0 8px 24px rgba(20,24,32,.08);
+    --checker:#e7eaef;
+  }
+  :root[data-theme="dark"]{
+    --accent:#3399dd; --accent-bright:#5cb0ea; --accent-deep:#007acc; --pressed:#1a4f7c;
+    --bg:#1b1c1f; --surface:#232427; --surface-2:#2b2b2e; --elev:#2e2f33;
+    --border:#3a3b40; --border-strong:#4a4c52;
+    --text:#e0e0e0; --muted:#a2a7b0; --faint:#767b85;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 12px 34px rgba(0,0,0,.42);
+    --checker:#2a2b2e;
+  }
+
+  /* ---------- Base ---------- */
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:var(--font-body); font-size:17px; line-height:1.62;
+    -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+    overflow-x:hidden;
+  }
+  h1,h2,h3{font-family:var(--font-display); font-weight:700; line-height:1.08; text-wrap:balance; margin:0}
+  p{margin:0}
+  a{color:inherit}
+  img{max-width:100%; display:block}
+  .wrap{max-width:var(--maxw); margin:0 auto; padding:0 24px}
+  .eyebrow{
+    font-size:.74rem; text-transform:uppercase; letter-spacing:.16em; font-weight:600;
+    color:var(--accent); font-family:var(--font-body);
+  }
+  .muted{color:var(--muted)}
+  section{padding:clamp(56px,8vw,104px) 0}
+  .sec-head{max-width:640px; margin-bottom:clamp(32px,5vw,52px)}
+  .sec-head h2{font-size:clamp(1.7rem,3.4vw,2.5rem); margin:.5rem 0 .6rem}
+  .sec-head p{color:var(--muted); font-size:1.06rem}
+
+  /* ---------- Header ---------- */
+  header{
+    position:sticky; top:0; z-index:40;
+    background:color-mix(in srgb,var(--bg) 82%,transparent);
+    backdrop-filter:saturate(140%) blur(12px);
+    border-bottom:1px solid var(--border);
+  }
+  .nav{display:flex; align-items:center; gap:18px; height:62px}
+  .brand{display:flex; align-items:center; gap:10px; font-family:var(--font-display); font-weight:700; font-size:1.28rem; letter-spacing:.01em; text-decoration:none}
+  .brand img{width:30px; height:30px; border-radius:7px}
+  .nav-links{display:flex; gap:6px; margin-left:auto}
+  .nav-links a{
+    text-decoration:none; color:var(--muted); font-size:.94rem; font-weight:500;
+    padding:8px 12px; border-radius:9px; border:1px solid transparent; transition:.16s;
+  }
+  .nav-links a:hover{color:var(--text); background:var(--surface-2); border-color:var(--accent-deep)}
+  .lang{display:inline-flex; border:1px solid var(--border-strong); border-radius:9px; overflow:hidden; margin-left:6px}
+  .lang button{
+    font:inherit; font-size:.82rem; font-weight:600; cursor:pointer; border:0;
+    padding:7px 11px; background:transparent; color:var(--muted); transition:.14s;
+  }
+  .lang button.on{background:var(--accent-deep); color:#fff}
+  .lang button:not(.on):hover{background:var(--surface-2); color:var(--text)}
+  .nav-gh{display:inline-flex; align-items:center; justify-content:center; width:38px; height:38px; border-radius:9px; border:1px solid var(--border-strong); color:var(--muted); transition:.16s}
+  .nav-gh:hover{border-color:var(--accent-deep); color:var(--text); background:var(--surface-2)}
+  .nav-links.mobile-hide{}
+  @media (max-width:820px){ .nav-links{display:none} }
+
+  /* ---------- Buttons ---------- */
+  .btn{
+    display:inline-flex; align-items:center; gap:9px; cursor:pointer;
+    font:inherit; font-weight:600; font-size:1rem; text-decoration:none;
+    padding:13px 20px; border-radius:11px; border:1px solid transparent; transition:.16s;
+    white-space:nowrap;
+  }
+  .btn svg{width:18px; height:18px; flex:none}
+  .btn-primary{background:var(--accent-deep); color:#fff; box-shadow:0 6px 18px -6px var(--accent-deep)}
+  .btn-primary:hover{background:var(--accent-bright); transform:translateY(-1px)}
+  .btn-primary:active{background:var(--pressed); transform:none}
+  .btn-ghost{background:var(--surface); color:var(--text); border-color:var(--border-strong)}
+  .btn-ghost:hover{border-color:var(--accent-deep); background:var(--surface-2)}
+  .btn[aria-disabled="true"]{cursor:not-allowed; opacity:.85}
+  .btn[aria-disabled="true"]:hover{transform:none}
+
+  /* ---------- Hero ---------- */
+  .hero{padding-top:clamp(48px,7vw,88px); padding-bottom:clamp(40px,5vw,64px); text-align:center; position:relative}
+  .hero-glow{position:absolute; inset:0; pointer-events:none; overflow:hidden}
+  .hero-glow::before{
+    content:""; position:absolute; top:-20%; left:50%; transform:translateX(-50%);
+    width:min(900px,90vw); height:520px; border-radius:50%;
+    background:radial-gradient(closest-side,color-mix(in srgb,var(--accent-deep) 26%,transparent),transparent);
+    opacity:.5; filter:blur(20px);
+  }
+  .hero h1{font-size:clamp(2.35rem,5.4vw,4.05rem); letter-spacing:-.02em; margin:16px auto 0; max-width:14ch}
+  .hero h1 .hl{color:var(--accent)}
+  .hero-sub{max-width:60ch; margin:20px auto 0; color:var(--muted); font-size:clamp(1.02rem,1.6vw,1.2rem)}
+  .hero-cta{display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:30px}
+  .hero-meta{margin-top:18px; font-size:.86rem; color:var(--faint); display:flex; gap:16px; justify-content:center; flex-wrap:wrap; font-family:var(--font-mono)}
+  .hero-meta span{display:inline-flex; align-items:center; gap:6px}
+  .dot-ok{width:7px;height:7px;border-radius:50%;background:#3fb950}
+
+  /* Marco de la captura con "hormigas en marcha" y tiradores (caja de transformación) */
+  .shot{position:relative; margin:clamp(38px,6vw,68px) auto 0; max-width:1060px; padding:10px}
+  .shot-inner{position:relative; border-radius:12px; overflow:hidden;
+    background-image:
+      linear-gradient(45deg,var(--checker) 25%,transparent 25%),
+      linear-gradient(-45deg,var(--checker) 25%,transparent 25%),
+      linear-gradient(45deg,transparent 75%,var(--checker) 75%),
+      linear-gradient(-45deg,transparent 75%,var(--checker) 75%);
+    background-size:18px 18px; background-position:0 0,0 9px,9px -9px,-9px 0;
+    box-shadow:var(--shadow);
+  }
+  .shot-inner img{width:100%; border-radius:12px; display:block}
+  .ants{position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:2}
+  .ants rect{stroke:var(--accent); stroke-width:1.4; fill:none; stroke-dasharray:6 4; animation:march 1.6s linear infinite}
+  @keyframes march{to{stroke-dashoffset:-20}}
+  .handle{position:absolute; width:11px; height:11px; background:var(--surface); border:2px solid var(--accent); border-radius:2px; z-index:3}
+  .handle.tl{top:3px;left:3px} .handle.tr{top:3px;right:3px}
+  .handle.bl{bottom:3px;left:3px} .handle.br{bottom:3px;right:3px}
+
+  /* ---------- Chips ---------- */
+  .chips{display:flex; flex-wrap:wrap; gap:10px}
+  .chip{
+    display:inline-flex; align-items:center; gap:8px; padding:8px 14px; border-radius:999px;
+    background:var(--surface); border:1px solid var(--border); font-size:.9rem; font-weight:500;
+    transition:.16s;
+  }
+  .chip:hover{border-color:var(--accent-deep); background:var(--surface-2)}
+  .chip svg{width:15px;height:15px;color:var(--accent)}
+
+  /* ---------- IA cards ---------- */
+  .ia-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:22px}
+  @media (max-width:800px){ .ia-grid{grid-template-columns:1fr} }
+  .ia-card{
+    background:var(--surface); border:1px solid var(--border); border-radius:16px; overflow:hidden;
+    transition:.18s; display:flex; flex-direction:column;
+  }
+  .ia-card:hover{border-color:var(--accent-deep); box-shadow:var(--shadow)}
+  .viewer{
+    position:relative; aspect-ratio:1328/914; cursor:pointer; user-select:none;
+    background-image:
+      linear-gradient(45deg,var(--checker) 25%,transparent 25%),
+      linear-gradient(-45deg,var(--checker) 25%,transparent 25%),
+      linear-gradient(45deg,transparent 75%,var(--checker) 75%),
+      linear-gradient(-45deg,transparent 75%,var(--checker) 75%);
+    background-size:18px 18px; background-position:0 0,0 9px,9px -9px,-9px 0;
+    overflow:hidden;
+  }
+  .viewer .frame{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:0; transition:opacity .32s ease}
+  .viewer .frame.on{opacity:1}
+  .stage-tag{
+    position:absolute; top:12px; left:12px; z-index:4;
+    font-family:var(--font-mono); font-size:.72rem; font-weight:600; letter-spacing:.04em;
+    padding:5px 10px; border-radius:7px; color:#fff; background:color-mix(in srgb,#111 62%,transparent);
+    backdrop-filter:blur(4px); border:1px solid rgba(255,255,255,.14);
+  }
+  .stage-tag.after{background:color-mix(in srgb,var(--accent-deep) 82%,#000)}
+  .reveal-hint{
+    position:absolute; bottom:12px; right:12px; z-index:4; display:flex; align-items:center; gap:6px;
+    font-size:.74rem; font-weight:600; color:#fff; padding:6px 11px; border-radius:999px;
+    background:color-mix(in srgb,#111 55%,transparent); backdrop-filter:blur(4px);
+    border:1px solid rgba(255,255,255,.16); transition:opacity .2s;
+  }
+  .reveal-hint svg{width:14px;height:14px}
+  .dots{display:flex; gap:8px; padding:14px 18px 0; justify-content:center}
+  .dot{width:auto; height:26px; padding:0 11px; border-radius:999px; border:1px solid var(--border-strong);
+    background:transparent; color:var(--muted); font:inherit; font-size:.74rem; font-weight:600; cursor:pointer; transition:.14s;
+    font-family:var(--font-mono);}
+  .dot:hover{border-color:var(--accent-deep); color:var(--text)}
+  .dot.on{background:var(--accent-deep); border-color:var(--accent-deep); color:#fff}
+  .ia-cap{padding:14px 20px 20px}
+  .ia-cap h3{font-size:1.24rem; margin-bottom:5px}
+  .ia-cap p{color:var(--muted); font-size:.96rem}
+
+  .more-ai{margin-top:26px}
+  .more-ai .lead{font-size:.9rem; color:var(--faint); text-transform:uppercase; letter-spacing:.1em; font-weight:600; margin-bottom:14px}
+
+  /* ---------- Tools ---------- */
+  .tools-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:20px}
+  @media (max-width:860px){ .tools-grid{grid-template-columns:repeat(2,1fr)} }
+  @media (max-width:540px){ .tools-grid{grid-template-columns:1fr} }
+  .tool{
+    background:var(--surface); border:1px solid var(--border); border-radius:14px; overflow:hidden;
+    transition:.18s; cursor:zoom-in;
+  }
+  .tool:hover{border-color:var(--accent-deep); transform:translateY(-3px); box-shadow:var(--shadow)}
+  .tool .thumb{aspect-ratio:1328/914; overflow:hidden; background:var(--surface-2)}
+  .tool .thumb img{width:100%; height:100%; object-fit:cover; transition:transform .4s}
+  .tool:hover .thumb img{transform:scale(1.035)}
+  .tool .t-cap{padding:13px 16px}
+  .tool .t-cap h3{font-size:1.02rem}
+  .tool .t-cap p{font-size:.85rem; color:var(--muted); margin-top:2px}
+
+  /* ---------- Downloads ---------- */
+  .dl-grid{display:grid; grid-template-columns:1fr 1fr; gap:20px}
+  @media (max-width:720px){ .dl-grid{grid-template-columns:1fr} }
+  .dl-card{
+    background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:28px;
+    display:flex; flex-direction:column; gap:14px; transition:.18s;
+  }
+  .dl-card:hover{border-color:var(--accent-deep)}
+  .dl-top{display:flex; align-items:center; gap:14px}
+  .dl-os{width:46px;height:46px;border-radius:12px;display:grid;place-items:center;background:var(--surface-2);border:1px solid var(--border); color:var(--text)}
+  .dl-os svg{width:26px;height:26px}
+  .dl-card h3{font-size:1.24rem}
+  .dl-sub{font-size:.88rem; color:var(--muted)}
+  .badge-soon{font-family:var(--font-mono); font-size:.68rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+    color:var(--accent); background:color-mix(in srgb,var(--accent-deep) 16%,transparent); border:1px solid color-mix(in srgb,var(--accent-deep) 34%,transparent);
+    padding:3px 9px; border-radius:999px}
+  .dl-alt{text-align:center; margin-top:24px; font-size:.95rem; color:var(--muted)}
+  .dl-alt a{color:var(--accent); font-weight:600; text-decoration:none}
+  .dl-alt a:hover{text-decoration:underline}
+
+  /* ---------- Report ---------- */
+  .report{
+    background:linear-gradient(135deg,color-mix(in srgb,var(--accent-deep) 12%,var(--surface)),var(--surface));
+    border:1px solid var(--border); border-radius:20px; padding:clamp(30px,5vw,52px); text-align:center;
+  }
+  .report h2{font-size:clamp(1.6rem,3vw,2.2rem); margin-bottom:10px}
+  .report p{color:var(--muted); max-width:52ch; margin:0 auto 24px}
+
+  /* ---------- Footer ---------- */
+  footer{border-top:1px solid var(--border); padding:40px 0; margin-top:20px}
+  .foot{display:flex; align-items:center; gap:16px; flex-wrap:wrap; justify-content:space-between}
+  .foot .brand{font-size:1.1rem}
+  .foot-links{display:flex; gap:18px; flex-wrap:wrap; font-size:.9rem}
+  .foot-links a{color:var(--muted); text-decoration:none}
+  .foot-links a:hover{color:var(--accent)}
+  .foot-note{font-size:.82rem; color:var(--faint); margin-top:12px; font-family:var(--font-mono)}
+
+  /* ---------- Lightbox ---------- */
+  .lb{position:fixed; inset:0; z-index:80; background:rgba(8,9,11,.86); backdrop-filter:blur(6px);
+    display:none; align-items:center; justify-content:center; padding:24px; cursor:zoom-out}
+  .lb.open{display:flex}
+  .lb img{max-width:96vw; max-height:92vh; border-radius:10px; box-shadow:0 20px 60px rgba(0,0,0,.6)}
+  .lb-close{position:absolute; top:18px; right:20px; width:42px; height:42px; border-radius:10px;
+    background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.2); color:#fff; font-size:1.4rem; cursor:pointer}
+
+  /* ---------- Toast ---------- */
+  .toast{position:fixed; left:50%; bottom:28px; transform:translate(-50%,20px); z-index:90;
+    background:var(--elev); color:var(--text); border:1px solid var(--border-strong); box-shadow:var(--shadow);
+    padding:13px 18px; border-radius:12px; font-size:.92rem; max-width:90vw;
+    opacity:0; pointer-events:none; transition:.25s}
+  .toast.show{opacity:1; transform:translate(-50%,0)}
+  .toast a{color:var(--accent); font-weight:600}
+
+  @media (prefers-reduced-motion:reduce){
+    html{scroll-behavior:auto}
+    *{animation:none !important; transition:none !important}
+  }
+</style>
+
+<header>
+  <div class="wrap nav">
+    <a class="brand" href="#top"><img src="@@IMG:logo@@" alt="Imago"> Imago</a>
+    <nav class="nav-links">
+      <a href="#que-es" data-en="What it is" data-fr="Présentation">Qué es</a>
+      <a href="#ia" data-en="Local AI" data-fr="IA locale">IA local</a>
+      <a href="#herramientas" data-en="Tools" data-fr="Outils">Herramientas</a>
+      <a href="#descargas" data-en="Download" data-fr="Télécharger">Descargas</a>
+      <a href="#reportar" data-en="Report a bug" data-fr="Signaler">Reportar</a>
+    </nav>
+    <a class="nav-gh" href="https://github.com/anvilnu/Imago" target="_blank" rel="noopener" aria-label="GitHub">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 .5A11.5 11.5 0 0 0 .5 12a11.5 11.5 0 0 0 7.86 10.92c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.36-3.88-1.36-.53-1.33-1.3-1.69-1.3-1.69-1.06-.72.08-.71.08-.71 1.17.08 1.79 1.2 1.79 1.2 1.04 1.79 2.73 1.27 3.4.97.1-.76.4-1.27.74-1.56-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11 11 0 0 1 5.8 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.09 0 4.42-2.69 5.39-5.25 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 23.5 12 11.5 11.5 0 0 0 12 .5Z"/></svg>
+    </a>
+    <div class="lang" role="group" aria-label="Idioma / Language / Langue">
+      <button data-lang="es" class="on">ES</button>
+      <button data-lang="en">EN</button>
+      <button data-lang="fr">FR</button>
+    </div>
+  </div>
+</header>
+
+<main id="top">
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-glow"></div>
+    <div class="wrap">
+      <p class="eyebrow" data-en="Desktop image editor · Free software" data-fr="Éditeur d'images de bureau · Logiciel libre">Editor de imágenes de escritorio · Software libre</p>
+      <h1 data-en-html='Your image studio. With AI that <span class="hl">never leaves your computer</span>.' data-fr-html='Votre studio d&#39;image. Avec une IA qui <span class="hl">ne quitte jamais votre ordinateur</span>.'>Tu estudio de imagen. Con IA que <span class="hl">nunca sale de tu equipo</span>.</h1>
+      <p class="hero-sub" data-en="Imago is a desktop editor with layers, selection, unlimited undo and a full set of drawing tools — plus local AI that removes backgrounds, colorizes, restores and much more, without sending your photos to any server." data-fr="Imago est un éditeur de bureau avec calques, sélection, annulation/rétablissement illimité et une panoplie d'outils de dessin, plus une IA locale qui détoure les arrière-plans, colorise, restaure et bien plus, sans envoyer vos photos vers aucun serveur.">Imago es un editor de escritorio con capas, selección, deshacer/rehacer ilimitado y un arsenal de herramientas de dibujo, más IA local que quita fondos, coloriza, restaura y mucho más, sin enviar tus fotos a ningún servidor.</p>
+      <div class="hero-cta">
+        <a class="btn btn-primary" href="#descargas" data-en="Download Imago" data-fr="Télécharger Imago">Descargar Imago</a>
+        <a class="btn btn-ghost" href="#ia" data-en="See the AI in action" data-fr="Voir l'IA en action">Ver la IA en acción</a>
+      </div>
+      <div class="hero-meta">
+        <span><span class="dot-ok"></span> <span data-en="Linux &amp; Windows" data-fr="Linux et Windows">Linux y Windows</span></span>
+        <span>·</span>
+        <span data-en="Python + PySide6" data-fr="Python + PySide6">Python + PySide6</span>
+        <span>·</span>
+        <span>GPLv3</span>
+      </div>
+    </div>
+    <div class="shot">
+      <div class="shot-inner">
+        <img src="@@IMG:general@@" alt="Vista general de Imago" data-en-alt="Overview of the Imago interface" data-fr-alt="Vue d'ensemble de l'interface d'Imago">
+        <svg class="ants" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><rect x="0.7" y="0.7" width="98.6" height="98.6" vector-effect="non-scaling-stroke" rx="1.2"/></svg>
+      </div>
+      <span class="handle tl"></span><span class="handle tr"></span>
+      <span class="handle bl"></span><span class="handle br"></span>
+    </div>
+  </div>
+
+  <!-- QUÉ ES -->
+  <section id="que-es">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow" data-en="What it is" data-fr="Présentation">Qué es</p>
+        <h2 data-en="A complete editor, with a dark theme of its own" data-fr="Un éditeur complet, avec son propre thème sombre">Un editor completo, con tema oscuro propio</h2>
+        <p data-en="Everything you expect from a serious editor — and nothing gets in your way. Inspired by Paint.NET, rebuilt in Python and Qt for Linux and Windows." data-fr="Tout ce que vous attendez d'un éditeur sérieux, et rien qui vous gêne. Inspiré de Paint.NET, reconstruit en Python et Qt pour Linux et Windows.">Todo lo que esperas de un editor serio, y nada que te estorbe. Inspirado en Paint.NET, reconstruido en Python y Qt para Linux y Windows.</p>
+      </div>
+      <div class="chips">
+        <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg><span data-en="Layers, masks &amp; blend modes" data-fr="Calques, masques et fusion">Capas, máscaras y fusión</span></span>
+        <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="4 3"><rect x="3" y="3" width="18" height="18" rx="2"/></svg><span data-en="Selection (rectangle, ellipse, lasso, magic wand)" data-fr="Sélection (rectangle, ellipse, lasso, baguette magique)">Selección (rectángulo, elipse, lazo, varita)</span></span>
+        <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg><span data-en="Unlimited undo / redo" data-fr="Annulation / rétablissement illimité">Deshacer / rehacer ilimitado</span></span>
+        <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18M3 12h18"/></svg><span data-en="55+ adjustments &amp; effects" data-fr="Plus de 55 réglages et effets">Más de 55 ajustes y efectos</span></span>
+        <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V4s-1 1-4 1-5-2-8-2-4 1-4 1z"/></svg><span data-en="Keeps EXIF · opens PSD · prints" data-fr="Conserve l'EXIF · ouvre le PSD · imprime">Conserva EXIF · abre PSD · imprime</span></span>
+        <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h18M3 12h18M3 17h18"/></svg><span data-en="Native .imago format with layers" data-fr="Format .imago natif avec calques">Formato .imago nativo con capas</span></span>
+        <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M2 12h20M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg><span data-en="Spanish / English / French interface" data-fr="Interface espagnol / anglais / français">Interfaz español / inglés / francés</span></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- IA -->
+  <section id="ia" style="background:var(--surface-2)">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow" data-en="The power of local AI" data-fr="La puissance de l'IA locale">El potencial de la IA local</p>
+        <h2 data-en="Artificial intelligence that runs on your machine" data-fr="L'intelligence artificielle qui tourne sur votre propre machine">Inteligencia artificial que corre en tu propio equipo</h2>
+        <p data-en="No cloud, no accounts, no uploads. Imago runs open models on your CPU — your images never leave your computer. Tap each example to reveal the result." data-fr="Pas de cloud, pas de comptes, aucun envoi. Imago exécute des modèles ouverts sur votre CPU : vos images ne quittent jamais votre ordinateur. Touchez chaque exemple pour révéler le résultat.">Sin nube, sin cuentas, sin subir nada. Imago ejecuta modelos abiertos en tu CPU: tus imágenes nunca salen de tu ordenador. Toca cada ejemplo para ver el resultado.</p>
+      </div>
+
+      <div class="ia-grid">
+        <!-- Borrar objetos -->
+        <figure class="ia-card">
+          <div class="viewer" data-frames="3">
+            <img class="frame on" src="@@IMG:ia_borrar1@@" alt="Antes de borrar el objeto">
+            <img class="frame" src="@@IMG:ia_borrar2@@" alt="Proceso">
+            <img class="frame" src="@@IMG:ia_borrar3@@" alt="Después de borrar el objeto">
+            <span class="stage-tag"></span>
+            <span class="reveal-hint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg><span data-en="Tap to reveal">Toca para ver</span></span>
+          </div>
+          <div class="dots"></div>
+          <figcaption class="ia-cap">
+            <h3 data-en="Remove objects" data-fr="Effacer des objets">Borrar objetos</h3>
+            <p data-en="Paint over what you don't want and the AI rebuilds the background (inpainting with LaMa)." data-fr="Peignez ce qui vous gêne et l'IA reconstruit l'arrière-plan (remplissage génératif avec LaMa).">Pinta lo que sobra y la IA reconstruye el fondo por detrás (relleno generativo con LaMa).</p>
+          </figcaption>
+        </figure>
+
+        <!-- Colorizar -->
+        <figure class="ia-card">
+          <div class="viewer" data-frames="2">
+            <img class="frame on" src="@@IMG:ia_colorizar1@@" alt="Foto en blanco y negro">
+            <img class="frame" src="@@IMG:ia_colorizar2@@" alt="Foto colorizada">
+            <span class="stage-tag"></span>
+            <span class="reveal-hint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg><span data-en="Tap to reveal">Toca para ver</span></span>
+          </div>
+          <div class="dots"></div>
+          <figcaption class="ia-cap">
+            <h3 data-en="Colorize" data-fr="Coloriser">Colorizar</h3>
+            <p data-en="Bring old black-and-white photos to life with believable color (DDColor)." data-fr="Redonnez vie aux vieilles photos en noir et blanc avec des couleurs crédibles (DDColor).">Da vida a fotos antiguas en blanco y negro con color creíble (DDColor).</p>
+          </figcaption>
+        </figure>
+
+        <!-- Desenfocar fondo -->
+        <figure class="ia-card">
+          <div class="viewer" data-frames="2">
+            <img class="frame on" src="@@IMG:ia_desenfocar_fondo1@@" alt="Antes del desenfoque de fondo">
+            <img class="frame" src="@@IMG:ia_desenfocar_fondo2@@" alt="Con el fondo desenfocado">
+            <span class="stage-tag"></span>
+            <span class="reveal-hint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg><span data-en="Tap to reveal">Toca para ver</span></span>
+          </div>
+          <div class="dots"></div>
+          <figcaption class="ia-cap">
+            <h3 data-en="Blur the background" data-fr="Flouter l'arrière-plan">Desenfocar el fondo</h3>
+            <p data-en="Portrait-style depth of field: the AI estimates depth and blurs only what's behind (bokeh with MiDaS)." data-fr="Profondeur de champ façon portrait : l'IA estime la profondeur et ne floute que l'arrière-plan (bokeh avec MiDaS).">Profundidad de campo tipo retrato: la IA estima la profundidad y desenfoca solo lo de detrás (bokeh con MiDaS).</p>
+          </figcaption>
+        </figure>
+
+        <!-- Reemplazar fondo -->
+        <figure class="ia-card">
+          <div class="viewer" data-frames="3">
+            <img class="frame on" src="@@IMG:ia_reemplazar_fondo1@@" alt="Imagen original">
+            <img class="frame" src="@@IMG:ia_reemplazar_fondo2@@" alt="Proceso">
+            <img class="frame" src="@@IMG:ia_reemplazar_fondo3@@" alt="Con el fondo reemplazado">
+            <span class="stage-tag"></span>
+            <span class="reveal-hint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg><span data-en="Tap to reveal">Toca para ver</span></span>
+          </div>
+          <div class="dots"></div>
+          <figcaption class="ia-cap">
+            <h3 data-en="Replace the background" data-fr="Remplacer l'arrière-plan">Reemplazar el fondo</h3>
+            <p data-en="Cut out the subject in one click and drop in a new background (isnet segmentation)." data-fr="Détourez le sujet en un clic et placez un nouvel arrière-plan (segmentation avec isnet).">Recorta el sujeto en un clic y pon otro fondo detrás (segmentación con isnet).</p>
+          </figcaption>
+        </figure>
+      </div>
+
+      <div class="more-ai">
+        <p class="lead" data-en="And much more, all local" data-fr="Et bien plus, tout en local">Y mucho más, todo local</p>
+        <div class="chips">
+          <span class="chip"><span data-en="Super-resolution" data-fr="Super-résolution">Super-resolución</span></span>
+          <span class="chip"><span data-en="Restore faces" data-fr="Restaurer les visages">Restaurar caras</span></span>
+          <span class="chip"><span data-en="Denoise" data-fr="Réduire le bruit">Reducir ruido</span></span>
+          <span class="chip"><span data-en="3D anaglyph" data-fr="Anaglyphe 3D">Efecto 3D anaglifo</span></span>
+          <span class="chip"><span data-en="Select object" data-fr="Sélectionner un objet">Seleccionar objeto</span></span>
+          <span class="chip"><span data-en="Style transfer" data-fr="Transfert de style">Transferencia de estilo</span></span>
+          <span class="chip"><span data-en="Straighten horizon" data-fr="Redresser l'horizon">Enderezar horizonte</span></span>
+          <span class="chip"><span data-en="Red-eye" data-fr="Yeux rouges">Ojos rojos</span></span>
+          <span class="chip"><span data-en="Fix perspective" data-fr="Corriger la perspective">Corregir perspectiva</span></span>
+          <span class="chip"><span data-en="Panorama" data-fr="Panorama">Panorama</span></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HERRAMIENTAS -->
+  <section id="herramientas">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow" data-en="Tools" data-fr="Outils">Herramientas</p>
+        <h2 data-en="Everything to draw, retouch and compose" data-fr="Tout pour dessiner, retoucher et composer">Todo para dibujar, retocar y componer</h2>
+        <p data-en="A tool for every job, each with its own dynamic options bar. Click any shot to enlarge." data-fr="Un outil pour chaque tâche, chacun avec sa propre barre d'options dynamique. Cliquez sur une capture pour l'agrandir.">Una herramienta para cada tarea, cada una con su barra de opciones propia. Pulsa cualquier captura para ampliarla.</p>
+      </div>
+      <div class="tools-grid">
+        <figure class="tool">
+          <div class="thumb"><img src="@@IMG:h_formas@@" alt="Herramienta de formas" data-en-alt="Shapes tool" data-fr-alt="Outil formes"></div>
+          <figcaption class="t-cap"><h3 data-en="Shapes" data-fr="Formes">Formas</h3><p data-en="Rectangles, ellipses, polygons, arrows and more." data-fr="Rectangles, ellipses, polygones, flèches et plus.">Rectángulos, elipses, polígonos, flechas y más.</p></figcaption>
+        </figure>
+        <figure class="tool">
+          <div class="thumb"><img src="@@IMG:h_pluma@@" alt="Herramienta pluma" data-en-alt="Pen paths tool" data-fr-alt="Outil plume et tracés"></div>
+          <figcaption class="t-cap"><h3 data-en="Pen &amp; paths" data-fr="Plume et tracés">Pluma y trazados</h3><p data-en="Precise vector curves with editable nodes." data-fr="Courbes vectorielles précises avec nœuds éditables.">Curvas vectoriales precisas con nodos editables.</p></figcaption>
+        </figure>
+        <figure class="tool">
+          <div class="thumb"><img src="@@IMG:h_recorte@@" alt="Herramienta de recorte" data-en-alt="Crop tool" data-fr-alt="Outil de recadrage"></div>
+          <figcaption class="t-cap"><h3 data-en="Crop" data-fr="Recadrage">Recorte</h3><p data-en="Adjustable box, rule of thirds, dimmed outside." data-fr="Cadre ajustable, règle des tiers, extérieur assombri.">Caja ajustable, regla de tercios, exterior oscurecido.</p></figcaption>
+        </figure>
+        <figure class="tool">
+          <div class="thumb"><img src="@@IMG:h_tampon@@" alt="Herramienta tampón de clonar" data-en-alt="Clone stamp tool" data-fr-alt="Outil tampon de clonage"></div>
+          <figcaption class="t-cap"><h3 data-en="Clone stamp" data-fr="Tampon de clonage">Tampón de clonar</h3><p data-en="Copy pixels from one area over another." data-fr="Copie les pixels d'une zone vers une autre.">Copia píxeles de una zona sobre otra.</p></figcaption>
+        </figure>
+        <figure class="tool">
+          <div class="thumb"><img src="@@IMG:h_texto@@" alt="Herramienta de texto" data-en-alt="Text tool" data-fr-alt="Outil texte"></div>
+          <figcaption class="t-cap"><h3 data-en="Text" data-fr="Texte">Texto</h3><p data-en="Editable, re-styleable vector text you can rotate." data-fr="Texte vectoriel éditable, restylable et pivotable.">Texto vectorial editable, reestilizable y girable.</p></figcaption>
+        </figure>
+        <figure class="tool" style="cursor:default; display:flex; align-items:center; justify-content:center; background:var(--surface-2)">
+          <figcaption class="t-cap" style="text-align:center; padding:24px">
+            <h3 style="color:var(--accent)" data-en="+ pen, pencil, eraser, bucket, gradient, airbrush, smudge, eyedropper…" data-fr="+ pinceau, crayon, gomme, pot, dégradé, aérographe, doigt, pipette…">+ pincel, lápiz, goma, cubo, degradado, aerógrafo, dedo, cuentagotas…</h3>
+            <p data-en="A dozen more in the toolbox." data-fr="Une douzaine d'autres dans la boîte à outils.">Una docena más en la caja de herramientas.</p>
+          </figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- DESCARGAS -->
+  <section id="descargas" style="background:var(--surface-2)">
+    <div class="wrap">
+      <div class="sec-head" style="margin-left:auto;margin-right:auto;text-align:center;max-width:640px">
+        <p class="eyebrow" data-en="Download" data-fr="Téléchargements">Descargas</p>
+        <h2 data-en="Get Imago for your system" data-fr="Procurez-vous Imago pour votre système">Consigue Imago para tu sistema</h2>
+        <p data-en="Available now for Windows: installer or portable. Linux packages (AppImage &amp; Flatpak) are coming soon — in the meantime you can run Imago from source." data-fr="Déjà disponible pour Windows : programme d'installation ou version portable. Les paquets Linux (AppImage et Flatpak) arrivent bientôt ; en attendant, vous pouvez exécuter Imago depuis le code source.">Ya disponible para Windows: instalador o versión portable. Los paquetes de Linux (AppImage y Flatpak) llegan pronto; mientras tanto, puedes ejecutar Imago desde el código fuente.</p>
+      </div>
+      <div class="dl-grid">
+        <div class="dl-card">
+          <div class="dl-top">
+            <div class="dl-os"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 5.5 10.5 4.4v7.1H3zM10.5 12.5v7.1L3 18.5v-6zM11.5 4.2 21 3v8.5h-9.5zM21 12.5V21l-9.5-1.3v-7.2z"/></svg></div>
+            <div>
+              <h3>Windows</h3>
+              <p class="dl-sub" data-en="Installer · portable .zip" data-fr="Installateur · .zip portable">Instalador · .zip portable</p>
+            </div>
+            <span class="badge-soon" style="margin-left:auto; color:#3fb950; background:rgba(63,185,80,.14); border-color:rgba(63,185,80,.4)">v1.0</span>
+          </div>
+          <a class="btn btn-primary" href="https://github.com/anvilnu/Imago/releases/download/v1.0/Imago-1.0-Setup.exe" data-en="Download installer" data-fr="Télécharger l'installateur">Descargar instalador</a>
+          <a class="btn btn-ghost" href="https://github.com/anvilnu/Imago/releases/download/v1.0/Imago-1.0-portable.zip" data-en="Portable (.zip)" data-fr="Portable (.zip)">Portable (.zip)</a>
+        </div>
+        <div class="dl-card">
+          <div class="dl-top">
+            <div class="dl-os"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c-2 0-3.2 1.6-3.2 3.8 0 1 .1 1.8.1 2.4-.5.6-1.9 2.2-2.6 4.3-.6 1.8-1.2 2.6-1.7 3.2-.6.7-.3 1.7.6 1.9.5.1.6.4.6.9 0 .6.5 1 1.4 1 .7 0 1.2-.2 1.6-.5.5.3 1.6.6 2.6.6s2.1-.3 2.6-.6c.4.3.9.5 1.6.5.9 0 1.4-.4 1.4-1 0-.5.1-.8.6-.9.9-.2 1.2-1.2.6-1.9-.5-.6-1.1-1.4-1.7-3.2-.7-2.1-2.1-3.7-2.6-4.3 0-.6.1-1.4.1-2.4C15.2 3.6 14 2 12 2z"/></svg></div>
+            <div>
+              <h3>Linux</h3>
+              <p class="dl-sub" data-en="AppImage · Flatpak · x86_64" data-fr="AppImage · Flatpak · x86_64">AppImage · Flatpak · x86_64</p>
+            </div>
+            <span class="badge-soon" style="margin-left:auto" data-en="Soon" data-fr="Bientôt">Pronto</span>
+          </div>
+          <button class="btn btn-primary dl-btn" aria-disabled="true" data-en="Download for Linux" data-fr="Télécharger pour Linux">Descargar para Linux</button>
+        </div>
+      </div>
+      <p class="dl-alt">
+        <span data-en="Prefer the source?" data-fr="Vous préférez le code source ?">¿Prefieres el código?</span>
+        <a href="https://github.com/anvilnu/Imago#requisitos-e-instalación" target="_blank" rel="noopener" data-en="Run it from GitHub →" data-fr="Exécutez-le depuis GitHub →">Ejecútalo desde GitHub →</a>
+      </p>
+    </div>
+  </section>
+
+  <!-- REPORTAR -->
+  <section id="reportar">
+    <div class="wrap">
+      <div class="report">
+        <p class="eyebrow" data-en="Report a bug" data-fr="Signaler un problème">Reportar un problema</p>
+        <h2 data-en="Found a bug or have an idea?" data-fr="Un bug ou une idée ?">¿Un fallo o una idea?</h2>
+        <p data-en="Imago is free and open software, and it improves with your feedback. Tell us on GitHub — no problem is too small." data-fr="Imago est un logiciel libre et ouvert, et il s'améliore grâce à vos retours. Dites-le-nous sur GitHub : aucun problème n'est trop petit.">Imago es software libre y abierto, y mejora con lo que nos cuentas. Dínoslo en GitHub: ningún problema es demasiado pequeño.</p>
+        <a class="btn btn-primary" href="https://github.com/anvilnu/Imago/issues/new/choose" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+          <span data-en="Report a problem" data-fr="Signaler un problème">Reportar un problema</span>
+        </a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot">
+      <a class="brand" href="#top"><img src="@@IMG:logo@@" alt="Imago" style="width:26px;height:26px;border-radius:6px"> Imago</a>
+      <div class="foot-links">
+        <a href="https://github.com/anvilnu/Imago" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/anvilnu/Imago/issues" target="_blank" rel="noopener" data-en="Issues" data-fr="Problèmes">Incidencias</a>
+        <a href="https://github.com/anvilnu/Imago/blob/main/LICENSE" target="_blank" rel="noopener">GPLv3</a>
+        <a href="#descargas" data-en="Download" data-fr="Télécharger">Descargas</a>
+      </div>
+    </div>
+    <p class="foot-note" data-en="Made with Python + PySide6 · Free software under the GNU GPLv3" data-fr="Fait avec Python + PySide6 · Logiciel libre sous la GNU GPLv3">Hecho con Python + PySide6 · Software libre bajo la GNU GPLv3</p>
+  </div>
+</footer>
+
+<div class="lb" id="lb"><button class="lb-close" aria-label="Cerrar">×</button><img id="lb-img" src="" alt=""></div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+  var STR = {
+    reveal:{es:"Toca para ver",en:"Tap to reveal",fr:"Toucher pour révéler"},
+    before:{es:"Antes",en:"Before",fr:"Avant"},
+    after:{es:"Después",en:"After",fr:"Après"},
+    step:{es:"Paso",en:"Step",fr:"Étape"},
+    soonToast:{es:'Las descargas para Linux aún no están disponibles. Mientras tanto, ',en:'Linux downloads aren’t available yet. In the meantime, ',fr:'Les téléchargements Linux ne sont pas encore disponibles. En attendant, '},
+    soonLink:{es:"ejecuta Imago desde GitHub →",en:"run Imago from GitHub →",fr:"exécutez Imago depuis GitHub →"}
+  };
+  var lang = "es";
+
+  function applyLang(l){
+    lang = l;
+    document.documentElement.lang = l;
+    document.querySelectorAll("[data-en]").forEach(function(el){
+      if(el.dataset.es === undefined) el.dataset.es = el.textContent;
+      el.textContent = el.dataset[l] || el.dataset.es;
+    });
+    document.querySelectorAll("[data-en-html]").forEach(function(el){
+      if(el.dataset.esHtml === undefined) el.dataset.esHtml = el.innerHTML;
+      el.innerHTML = el.dataset[l + "Html"] || el.dataset.esHtml;
+    });
+    document.querySelectorAll("[data-en-alt]").forEach(function(el){
+      if(el.dataset.esAlt === undefined) el.dataset.esAlt = el.getAttribute("alt") || "";
+      el.setAttribute("alt", el.dataset[l + "Alt"] || el.dataset.esAlt);
+    });
+    document.querySelectorAll(".lang button").forEach(function(b){
+      b.classList.toggle("on", b.dataset.lang === l);
+    });
+    // Textos generados por JS
+    document.querySelectorAll(".reveal-hint span").forEach(function(s){ s.textContent = STR.reveal[l]; });
+    galleries.forEach(function(g){ g.refresh(); });
+    try{ localStorage.setItem("imago-lang", l); }catch(e){}
+  }
+
+  // ---- Galerías antes/después ----
+  var galleries = [];
+  function stageLabel(i, n){
+    if(i === 0) return {t:STR.before[lang], cls:""};
+    if(i === n-1) return {t:STR.after[lang], cls:"after"};
+    return {t:STR.step[lang]+" "+(i+1), cls:""};
+  }
+  document.querySelectorAll(".viewer").forEach(function(v){
+    var frames = Array.prototype.slice.call(v.querySelectorAll(".frame"));
+    var n = frames.length, idx = 0;
+    var tag = v.querySelector(".stage-tag");
+    var hint = v.querySelector(".reveal-hint");
+    var dotsBox = v.parentElement.querySelector(".dots");
+    var dots = [];
+    for(var i=0;i<n;i++){
+      var b = document.createElement("button");
+      b.className = "dot" + (i===0?" on":"");
+      b.dataset.i = i;
+      dotsBox.appendChild(b);
+      dots.push(b);
+    }
+    function show(i){
+      idx = i;
+      frames.forEach(function(f,k){ f.classList.toggle("on", k===i); });
+      dots.forEach(function(d,k){ d.classList.toggle("on", k===i); });
+      refresh();
+      if(hint) hint.style.opacity = (i === n-1) ? "0" : "1";
+    }
+    function refresh(){
+      var s = stageLabel(idx, n);
+      tag.textContent = s.t;
+      tag.className = "stage-tag" + (s.cls ? " "+s.cls : "");
+      dots.forEach(function(d,k){ d.textContent = (k+1) + "/" + n; });
+    }
+    v.addEventListener("click", function(){ show((idx+1) % n); });
+    dots.forEach(function(d){
+      d.addEventListener("click", function(e){ e.stopPropagation(); show(+d.dataset.i); });
+    });
+    var g = {refresh:refresh};
+    galleries.push(g);
+    refresh();
+  });
+
+  // ---- Lightbox (herramientas) ----
+  var lb = document.getElementById("lb"), lbImg = document.getElementById("lb-img");
+  document.querySelectorAll(".tool .thumb img").forEach(function(img){
+    img.parentElement.parentElement.addEventListener("click", function(){
+      lbImg.src = img.src; lbImg.alt = img.alt; lb.classList.add("open");
+    });
+  });
+  function closeLb(){ lb.classList.remove("open"); }
+  lb.addEventListener("click", closeLb);
+  document.addEventListener("keydown", function(e){ if(e.key === "Escape") closeLb(); });
+
+  // ---- Toast en descargas no disponibles ----
+  var toast = document.getElementById("toast"), toastT;
+  function showToast(){
+    toast.innerHTML = STR.soonToast[lang] + '<a href="https://github.com/anvilnu/Imago" target="_blank" rel="noopener">' + STR.soonLink[lang] + '</a>';
+    toast.classList.add("show");
+    clearTimeout(toastT);
+    toastT = setTimeout(function(){ toast.classList.remove("show"); }, 4200);
+  }
+  document.querySelectorAll(".dl-btn").forEach(function(b){
+    b.addEventListener("click", function(e){ e.preventDefault(); showToast(); });
+  });
+
+  // ---- Selector de idioma ----
+  document.querySelectorAll(".lang button").forEach(function(b){
+    b.addEventListener("click", function(){ applyLang(b.dataset.lang); });
+  });
+
+  // ---- Idioma inicial: guardado > navegador > es ----
+  var saved;
+  try{ saved = localStorage.getItem("imago-lang"); }catch(e){}
+  var nav = (navigator.language || "es").toLowerCase();
+  var guess = nav.indexOf("es") === 0 ? "es" : (nav.indexOf("fr") === 0 ? "fr" : "en");
+  var initial = (saved === "es" || saved === "en" || saved === "fr") ? saved : guess;
+  applyLang(initial);
+})();
+</script>

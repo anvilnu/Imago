@@ -149,7 +149,7 @@ jobs:
   linux:
     name: Linux · AppImage y Flatpak
     needs: preparar
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Descargar el código
         uses: actions/checkout@v4

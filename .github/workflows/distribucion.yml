@@ -201,7 +201,7 @@ jobs:
           APPIMAGETOOL: ${{ github.workspace }}/build/herramientas/appimagetool-x86_64.AppImage
           PYTHON_BIN: python
         shell: bash
-        run: ./empaquetar_linux.sh
+        run: bash ./empaquetar_linux.sh
 
       - name: Resumir paquetes Linux
         env:

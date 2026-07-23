@@ -121,8 +121,6 @@
   .btn-primary:active{background:var(--pressed); transform:none}
   .btn-ghost{background:var(--surface); color:var(--text); border-color:var(--border-strong)}
   .btn-ghost:hover{border-color:var(--accent-deep); background:var(--surface-2)}
-  .btn[aria-disabled="true"]{cursor:not-allowed; opacity:.85}
-  .btn[aria-disabled="true"]:hover{transform:none}
 
   /* ---------- Hero ---------- */
   .hero{padding-top:clamp(48px,7vw,88px); padding-bottom:clamp(40px,5vw,64px); text-align:center; position:relative}
@@ -279,12 +277,6 @@
     background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.2); color:#fff; font-size:1.4rem; cursor:pointer}
 
   /* ---------- Toast ---------- */
-  .toast{position:fixed; left:50%; bottom:28px; transform:translate(-50%,20px); z-index:90;
-    background:var(--elev); color:var(--text); border:1px solid var(--border-strong); box-shadow:var(--shadow);
-    padding:13px 18px; border-radius:12px; font-size:.92rem; max-width:90vw;
-    opacity:0; pointer-events:none; transition:.25s}
-  .toast.show{opacity:1; transform:translate(-50%,0)}
-  .toast a{color:var(--accent); font-weight:600}
 
   @media (prefers-reduced-motion:reduce){
     html{scroll-behavior:auto}
@@ -566,7 +558,6 @@
 </footer>
 
 <div class="lb" id="lb"><button class="lb-close" aria-label="Cerrar">×</button><img id="lb-img" src="" alt=""></div>
-<div class="toast" id="toast"></div>
 
 <script>
 (function(){
@@ -575,9 +566,7 @@
     reveal:{es:"Toca para ver",en:"Tap to reveal",fr:"Toucher pour révéler"},
     before:{es:"Antes",en:"Before",fr:"Avant"},
     after:{es:"Después",en:"After",fr:"Après"},
-    step:{es:"Paso",en:"Step",fr:"Étape"},
-    soonToast:{es:'Las descargas para Linux aún no están disponibles. Mientras tanto, ',en:'Linux downloads aren’t available yet. In the meantime, ',fr:'Les téléchargements Linux ne sont pas encore disponibles. En attendant, '},
-    soonLink:{es:"ejecuta Imago desde GitHub →",en:"run Imago from GitHub →",fr:"exécutez Imago depuis GitHub →"}
+    step:{es:"Paso",en:"Step",fr:"Étape"}
   };
   var lang = "es";
 
@@ -658,18 +647,6 @@
   function closeLb(){ lb.classList.remove("open"); }
   lb.addEventListener("click", closeLb);
   document.addEventListener("keydown", function(e){ if(e.key === "Escape") closeLb(); });
-
-  // ---- Toast en descargas no disponibles ----
-  var toast = document.getElementById("toast"), toastT;
-  function showToast(){
-    toast.innerHTML = STR.soonToast[lang] + '<a href="https://github.com/anvilnu/Imago" target="_blank" rel="noopener">' + STR.soonLink[lang] + '</a>';
-    toast.classList.add("show");
-    clearTimeout(toastT);
-    toastT = setTimeout(function(){ toast.classList.remove("show"); }, 4200);
-  }
-  document.querySelectorAll(".dl-btn").forEach(function(b){
-    b.addEventListener("click", function(e){ e.preventDefault(); showToast(); });
-  });
 
   // ---- Selector de idioma ----
   document.querySelectorAll(".lang button").forEach(function(b){

@@ -7,3 +7,5 @@
 packaging/linux/AppRun          text eol=lf
 packaging/linux/*.desktop       text eol=lf
 packaging/linux/*.metainfo.xml  text eol=lf
+packaging/aur/PKGBUILD          text eol=lf
+packaging/aur/.SRCINFO          text eol=lf
